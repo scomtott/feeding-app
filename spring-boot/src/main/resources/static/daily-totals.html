@@ -121,6 +121,84 @@
             display: none;
         }
 
+        .entries-section {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .entries-section h2 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .entries-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .entries-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .entries-table th {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+
+        .entries-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .entries-table tbody tr:hover {
+            background-color: #f0f0f0;
+        }
+
+        .entries-table tbody tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        .entries-checkbox {
+            cursor: pointer;
+        }
+
+        .entries-controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-delete {
+            background-color: #f44336;
+        }
+
+        .btn-delete:hover {
+            background-color: #da190b;
+        }
+
+        .btn-delete:disabled {
+            background-color: #ccc;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -368,12 +446,39 @@
                 <p>Loading...</p>
             </div>
         </div>
+
+        <div class="entries-section">
+            <h2>All Entries</h2>
+            <div class="entries-table-container">
+                <table class="entries-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Left Breast (ml)</th>
+                            <th>Right Breast (ml)</th>
+                            <th>Total Breast (ml)</th>
+                            <th>Bottle (ml)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="entriesTableBody">
+                        <tr><td colspan="7" style="text-align: center; color: #999;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="entries-controls">
+                <button type="button" class="btn-delete" id="deleteButton" onclick="deleteSelectedEntries()" disabled>Delete Selected</button>
+                <span id="selectedCount" style="color: #666; margin-top: 5px;"></span>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
         let chart = null;
+        let allEntries = [];
 
         // Set default date and time to now
         document.addEventListener('DOMContentLoaded', () => {
@@ -381,6 +486,7 @@
             document.getElementById('date').valueAsDate = now;
             document.getElementById('time').value = now.toTimeString().substring(0, 5);
             loadDailyTotals();
+            loadEntries();
         });
 
         // Handle form submission
@@ -420,8 +526,9 @@
                 document.getElementById('rightBreastAmount').value = '0';
                 document.getElementById('bottleAmount').value = '0';
 
-                // Reload the graph
+                // Reload the graph and entries table
                 loadDailyTotals();
+                loadEntries();
             } catch (error) {
                 alert(`Failed to add entry: ${error.message}`);
             }
@@ -537,6 +644,101 @@
 
         function displayError(message) {
             document.getElementById('content').innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        // Load entries and display in table
+        async function loadEntries() {
+            try {
+                const response = await fetch('/api/breastfeeding/entries');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                allEntries = await response.json();
+                displayEntries();
+            } catch (error) {
+                document.getElementById('entriesTableBody').innerHTML = `<tr><td colspan="7" style="color: red;">Failed to load entries: ${error.message}</td></tr>`;
+            }
+        }
+
+        function displayEntries() {
+            const tbody = document.getElementById('entriesTableBody');
+            
+            if (allEntries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999;">No entries found</td></tr>';
+                return;
+            }
+
+            // Sort newest first by date + time
+            const sorted = [...allEntries].sort((a, b) => {
+                const aDt = new Date(`${a.date}T${a.time}`);
+                const bDt = new Date(`${b.date}T${b.time}`);
+                return bDt - aDt;
+            });
+
+            tbody.innerHTML = sorted.map(entry => `
+                <tr>
+                    <td><input type="checkbox" class="entry-checkbox" value="${entry.id}" onchange="updateDeleteButton()"></td>
+                    <td>${new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                    <td>${entry.time}</td>
+                    <td>${entry.leftBreastAmount}</td>
+                    <td>${entry.rightBreastAmount}</td>
+                    <td>${entry.leftBreastAmount + entry.rightBreastAmount}</td>
+                    <td>${entry.bottleAmount}</td>
+                </tr>
+            `).join('');
+        }
+
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.entry-checkbox');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+            updateDeleteButton();
+        }
+
+        function updateDeleteButton() {
+            const selected = document.querySelectorAll('.entry-checkbox:checked').length;
+            const deleteBtn = document.getElementById('deleteButton');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            deleteBtn.disabled = selected === 0;
+            selectedCount.textContent = selected > 0 ? `${selected} selected` : '';
+            
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const allCheckboxes = document.querySelectorAll('.entry-checkbox');
+            selectAllCheckbox.checked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
+        }
+
+        async function deleteSelectedEntries() {
+            const selected = Array.from(document.querySelectorAll('.entry-checkbox:checked')).map(cb => parseInt(cb.value));
+            
+            if (selected.length === 0) {
+                alert('No entries selected');
+                return;
+            }
+
+            if (!confirm(`Delete ${selected.length} entry(ies)?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/breastfeeding/entries/batch', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(selected)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Reload data
+                loadEntries();
+                loadDailyTotals();
+                document.getElementById('selectAllCheckbox').checked = false;
+            } catch (error) {
+                alert(`Failed to delete entries: ${error.message}`);
+            }
         }
     </script>
 </body>

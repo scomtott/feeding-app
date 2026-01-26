@@ -39,6 +39,14 @@ public class BreastFeedingEntry {
         this.rightBreastAmount = rightBreastAmount;
     }
 
+    public BreastFeedingEntry(LocalDate date, LocalTime time, int bottleAmount, int leftBreastAmount, int rightBreastAmount) {
+        this.date = date;
+        this.time = time;
+        this.bottleAmount = bottleAmount;
+        this.leftBreastAmount = leftBreastAmount;
+        this.rightBreastAmount = rightBreastAmount;
+    }
+
     public long getId() {
         return id;
     }
