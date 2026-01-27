@@ -1,16 +1,20 @@
 package com.example.springboot.services;
 
 import java.util.List;
+
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+
 import lombok.RequiredArgsConstructor;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
+
 import lombok.extern.slf4j.Slf4j;
 
 import com.example.springboot.models.BreastFeedingEntry;
 import com.example.springboot.persistence.BreastFeedingEntryRepository;
-import com.example.springboot.models.DailyTotal;
+import com.example.springboot.models.DailyFeedingTotal;
 
 
 @Service
@@ -38,9 +42,9 @@ private final BreastFeedingEntryRepository repository;
         return repository.saveAll(entries);
     }
 
-    public List<DailyTotal> calculateDailyTotals() {
+    public List<DailyFeedingTotal> calculateDailyTotals() {
         List<BreastFeedingEntry> orderedEntries = repository.findAll(Sort.by(Sort.Direction.ASC, "date", "time"));
-        List<DailyTotal> totals = new ArrayList<>();
+        List<DailyFeedingTotal> totals = new ArrayList<>();
 
         if (orderedEntries.isEmpty()) {
             return totals;
@@ -50,7 +54,7 @@ private final BreastFeedingEntryRepository repository;
         List<BreastFeedingEntry> currentDayEntries = new ArrayList<>();
         for (BreastFeedingEntry entry : orderedEntries) {
             if (!entry.getDate().equals(currentDate)) {
-                totals.add(DailyTotal.fromBreastFeedingEntryList(currentDayEntries, log));
+                totals.add(DailyFeedingTotal.fromBreastFeedingEntryList(currentDayEntries));
                 currentDayEntries.clear();
                 currentDayEntries.add(entry);
                 currentDate = entry.getDate();
@@ -61,7 +65,7 @@ private final BreastFeedingEntryRepository repository;
             }
         }
 
-        totals.add(DailyTotal.fromBreastFeedingEntryList(currentDayEntries, log));
+        totals.add(DailyFeedingTotal.fromBreastFeedingEntryList(currentDayEntries));
 
         return totals;
     }

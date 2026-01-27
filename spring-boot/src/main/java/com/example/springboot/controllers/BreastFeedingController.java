@@ -1,15 +1,17 @@
 package com.example.springboot.controllers;
 
 import com.example.springboot.models.BreastFeedingEntry;
-import com.example.springboot.models.DailyTotal;
+import com.example.springboot.models.DailyFeedingTotal;
 import com.example.springboot.services.BreastFeedingService;
 
 import java.time.LocalDate;
 import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
+
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -43,7 +45,7 @@ public class BreastFeedingController {
     }
 
     @GetMapping("/dailyTotals")
-    public List<DailyTotal> dailyTotals() {
+    public List<DailyFeedingTotal> dailyTotals() {
         return breastFeedingService.calculateDailyTotals();
     }
 
