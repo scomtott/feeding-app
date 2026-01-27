@@ -649,7 +649,7 @@
         // Load entries and display in table
         async function loadEntries() {
             try {
-                const response = await fetch('/api/breastfeeding/entries');
+                const response = await fetch('/api/breastfeeding/entries?direction=DESC');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -668,14 +668,7 @@
                 return;
             }
 
-            // Sort newest first by date + time
-            const sorted = [...allEntries].sort((a, b) => {
-                const aDt = new Date(`${a.date}T${a.time}`);
-                const bDt = new Date(`${b.date}T${b.time}`);
-                return bDt - aDt;
-            });
-
-            tbody.innerHTML = sorted.map(entry => `
+            tbody.innerHTML = allEntries.map(entry => `
                 <tr>
                     <td><input type="checkbox" class="entry-checkbox" value="${entry.id}" onchange="updateDeleteButton()"></td>
                     <td>${new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
