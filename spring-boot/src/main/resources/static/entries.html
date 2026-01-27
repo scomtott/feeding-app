@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily Totals</title>
+    <title>Entries</title>
     <style>
         * {
             margin: 0;
@@ -18,7 +18,7 @@
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
             background-color: white;
             border-radius: 8px;
@@ -33,11 +33,31 @@
             font-size: 24px;
         }
 
-        .controls {
+        nav {
+            background-color: #4CAF50;
+            padding: 15px;
+            margin: -15px -15px 20px -15px;
+            border-radius: 8px 8px 0 0;
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 20px;
             flex-wrap: wrap;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        nav a:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        nav a.active {
+            background-color: rgba(255, 255, 255, 0.3);
         }
 
         .form-section {
@@ -104,14 +124,6 @@
             cursor: not-allowed;
         }
 
-        .btn-secondary {
-            background-color: #2196F3;
-        }
-
-        .btn-secondary:hover {
-            background-color: #0b7dda;
-        }
-
         .success-message {
             background-color: #d4edda;
             color: #155724;
@@ -121,21 +133,8 @@
             display: none;
         }
 
-        .entries-section {
-            margin-top: 30px;
-            padding: 15px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
-        }
-
-        .entries-section h2 {
-            margin: 0 0 15px 0;
-            font-size: 18px;
-            color: #333;
-        }
-
         .entries-table-container {
-            max-height: 400px;
+            max-height: 600px;
             overflow-y: auto;
             border: 1px solid #ddd;
             border-radius: 4px;
@@ -192,98 +191,10 @@
             background-color: #ccc;
         }
 
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            cursor: pointer;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-
-            h1 {
-                font-size: 20px;
-                margin-bottom: 15px;
-            }
-
-            #content {
-                height: 100%;
-            }
-
-            canvas {
-                max-height: 300px !important;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 8px;
-            }
-
-            h1 {
-                font-size: 18px;
-                margin-bottom: 10px;
-            }
-
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            canvas {
-                max-height: 250px !important;
-            }
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th {
-            background-color: #4CAF50;
-            color: white;
-            padding: 12px;
-            text-align: left;
-            font-weight: bold;
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        tr:hover {
-            background-color: #f9f9f9;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-
         .loading {
             text-align: center;
             color: #666;
             padding: 20px;
-        }
-
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 12px;
-            border-radius: 4px;
-            margin-top: 20px;
-        }
-
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 12px;
-            border-radius: 4px;
-            margin-top: 20px;
         }
 
         .spinner {
@@ -301,146 +212,44 @@
             100% { transform: rotate(360deg); }
         }
 
-        nav {
-            background-color: #4CAF50;
-            padding: 15px;
-            margin: -15px -15px 20px -15px;
-            border-radius: 8px 8px 0 0;
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
 
-        nav a {
-            color: white;
-            text-decoration: none;
-            font-weight: bold;
-            padding: 5px 10px;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
-
-        nav a:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        nav a.active {
-            background-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .form-section {
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #e0e0e0;
-        }
-
-        .form-section h2 {
-            font-size: 18px;
-            color: #333;
-            margin-bottom: 15px;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #4CAF50;
-            box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            flex-wrap: wrap;
-        }
-
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        .btn-add {
-            background-color: #4CAF50;
-            color: white;
-            flex: 1;
-            min-width: 120px;
-        }
-
-        .btn-add:hover {
-            background-color: #45a049;
-        }
-
-        .btn-reload {
-            background-color: #2196F3;
-            color: white;
-            flex: 1;
-            min-width: 120px;
-        }
-
-        .btn-reload:hover {
-            background-color: #0b7dda;
+            h1 {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
         }
 
         @media (max-width: 480px) {
-            .form-row {
+            .container {
+                padding: 8px;
+            }
+
+            h1 {
+                font-size: 18px;
+                margin-bottom: 10px;
+            }
+
+            .form-grid {
                 grid-template-columns: 1fr;
-            }
-
-            .button-group {
-                flex-direction: column;
-            }
-
-            .btn-add, .btn-reload {
-                flex: 1;
-                width: 100%;
             }
         }
     </style>
 </head>
 <body>
-<parameter name="newString">    <div class="container">
+    <div class="container">
         <nav>
-            <a href="daily-totals.html" class="active">Daily Totals</a>
-            <a href="entries.html">Entries</a>
+            <a href="daily-totals.html">Daily Totals</a>
+            <a href="entries.html" class="active">Entries</a>
             <a href="pumping.html">Pumping</a>
             <a href="weight-tracker.html">Weight Tracker</a>
         </nav>
         
-        <h1>Daily Feeding Totals</h1>
-        
+        <h1>Feeding Entries</h1>
+
         <div class="form-section">
             <h2>Add New Entry</h2>
             <form id="entryForm">
@@ -466,22 +275,12 @@
                         <input type="number" id="bottleAmount" name="bottleAmount" min="0" value="0" required>
                     </div>
                 </div>
-                <div class="controls">
-                    <button type="submit">Add Entry</button>
-                    <button type="button" class="btn-secondary" onclick="loadDailyTotals()">Reload Graph</button>
-                </div>
+                <button type="submit">Add Entry</button>
                 <div id="successMessage" class="success-message">Entry added successfully!</div>
             </form>
         </div>
 
-        <div id="content">
-            <div class="loading">
-                <div class="spinner"></div>
-                <p>Loading...</p>
-            </div>
-        </div>
-
-        <div class="entries-section">
+        <div class="form-section">
             <h2>All Entries</h2>
             <div class="entries-table-container">
                 <table class="entries-table">
@@ -508,10 +307,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <script>
-        let chart = null;
         let allEntries = [];
 
         // Set default date and time to now
@@ -519,7 +315,6 @@
             const now = new Date();
             document.getElementById('date').valueAsDate = now;
             document.getElementById('time').value = now.toTimeString().substring(0, 5);
-            loadDailyTotals();
             loadEntries();
         });
 
@@ -560,125 +355,12 @@
                 document.getElementById('rightBreastAmount').value = '0';
                 document.getElementById('bottleAmount').value = '0';
 
-                // Reload the graph and entries table
-                loadDailyTotals();
+                // Reload entries table
                 loadEntries();
             } catch (error) {
                 alert(`Failed to add entry: ${error.message}`);
             }
         });
-
-        // Fetch and display daily totals
-        async function loadDailyTotals() {
-            try {
-                const response = await fetch('/api/breastfeeding/dailyTotals');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                displayChart(data);
-            } catch (error) {
-                displayError(`Failed to load data: ${error.message}`);
-            }
-        }
-
-        function displayChart(totals) {
-            if (totals.length === 0) {
-                document.getElementById('content').innerHTML = '<p style="text-align: center; color: #666;">No data available</p>';
-                return;
-            }
-
-            const dates = totals.map(t => new Date(t.date).toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
-            }));
-            const breastTotals = totals.map(t => t.breastTotal);
-            const bottleTotals = totals.map(t => t.bottleTotal);
-
-            const canvasHtml = '<canvas id="totalsChart"></canvas>';
-            document.getElementById('content').innerHTML = canvasHtml;
-
-            const ctx = document.getElementById('totalsChart').getContext('2d');
-            
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [
-                        {
-                            label: 'Breast (ml)',
-                            data: breastTotals,
-                            borderColor: '#4CAF50',
-                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#4CAF50',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2
-                        },
-                        {
-                            label: 'Bottle (ml)',
-                            data: bottleTotals,
-                            borderColor: '#2196F3',
-                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#2196F3',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 11 : 14
-                                },
-                                padding: window.innerWidth <= 480 ? 10 : 20,
-                                usePointStyle: true
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 10 : 12
-                                }
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 9 : 12
-                                },
-                                maxRotation: window.innerWidth <= 480 ? 45 : 0,
-                                minRotation: window.innerWidth <= 480 ? 45 : 0
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function displayError(message) {
-            document.getElementById('content').innerHTML = `<div class="error">${message}</div>`;
-        }
 
         // Load entries and display in table
         async function loadEntries() {
@@ -761,7 +443,6 @@
 
                 // Reload data
                 loadEntries();
-                loadDailyTotals();
                 document.getElementById('selectAllCheckbox').checked = false;
             } catch (error) {
                 alert(`Failed to delete entries: ${error.message}`);
