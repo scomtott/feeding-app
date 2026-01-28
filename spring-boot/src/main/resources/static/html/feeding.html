@@ -103,11 +103,106 @@
         let leftRunning = false;
         let rightRunning = false;
 
+        // LocalStorage keys
+        const STORAGE_KEY = 'feedingTimers';
+
+        // Save timer state to localStorage
+        function saveTimerState() {
+            const state = {
+                leftElapsed,
+                rightElapsed,
+                leftRunning,
+                rightRunning,
+                overallStartTime: overallStartTime ? overallStartTime.toISOString() : null,
+                leftStartTime: leftStartTime ? leftStartTime : null,
+                rightStartTime: rightStartTime ? rightStartTime : null
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        // Load timer state from localStorage
+        function loadTimerState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return false;
+
+            try {
+                const state = JSON.parse(saved);
+                
+                // Restore elapsed times
+                leftElapsed = state.leftElapsed || 0;
+                rightElapsed = state.rightElapsed || 0;
+                
+                // Restore overall start time
+                if (state.overallStartTime) {
+                    overallStartTime = new Date(state.overallStartTime);
+                }
+
+                // If timers were running, calculate elapsed time since save
+                if (state.leftRunning || state.rightRunning) {
+                    const now = Date.now();
+                    if (state.leftStartTime) {
+                        leftStartTime = state.leftStartTime;
+                        leftElapsed = Math.floor((now - leftStartTime) / 1000);
+                        leftRunning = true;
+                    }
+                    if (state.rightStartTime) {
+                        rightStartTime = state.rightStartTime;
+                        rightElapsed = Math.floor((now - rightStartTime) / 1000);
+                        rightRunning = true;
+                    }
+                }
+
+                return true;
+            } catch (e) {
+                console.error('Error loading timer state:', e);
+                return false;
+            }
+        }
+
+        // Clear timer state from localStorage
+        function clearTimerState() {
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
         // Set default date and time to now
         document.addEventListener('DOMContentLoaded', () => {
             const now = new Date();
             document.getElementById('date').valueAsDate = now;
             document.getElementById('time').value = now.toTimeString().substring(0, 5);
+            
+            // Load saved timer state
+            if (loadTimerState()) {
+                // Update display with restored times
+                document.getElementById('leftTimerDisplay').textContent = formatTime(leftElapsed);
+                document.getElementById('rightTimerDisplay').textContent = formatTime(rightElapsed);
+                
+                // Update button states
+                if (leftRunning) {
+                    document.getElementById('leftTimerButton').classList.add('paused');
+                    document.getElementById('leftTimerButton').textContent = 'Pause';
+                }
+                if (rightRunning) {
+                    document.getElementById('rightTimerButton').classList.add('paused');
+                    document.getElementById('rightTimerButton').textContent = 'Pause';
+                }
+                
+                // Resume running timers
+                if (leftRunning) {
+                    leftTimerInterval = setInterval(() => {
+                        leftElapsed = Math.floor((Date.now() - leftStartTime) / 1000);
+                        document.getElementById('leftTimerDisplay').textContent = formatTime(leftElapsed);
+                        saveTimerState();
+                    }, 100);
+                }
+                if (rightRunning) {
+                    rightTimerInterval = setInterval(() => {
+                        rightElapsed = Math.floor((Date.now() - rightStartTime) / 1000);
+                        document.getElementById('rightTimerDisplay').textContent = formatTime(rightElapsed);
+                        saveTimerState();
+                    }, 100);
+                }
+            }
+            
             loadEntries();
         });
 
@@ -140,13 +235,17 @@
                 leftTimerInterval = setInterval(() => {
                     leftElapsed = Math.floor((Date.now() - leftStartTime) / 1000);
                     document.getElementById('leftTimerDisplay').textContent = formatTime(leftElapsed);
+                    saveTimerState();
                 }, 100);
+                
+                saveTimerState();
             } else {
                 // Pause timer
                 leftRunning = false;
                 btn.classList.remove('paused');
                 btn.textContent = 'Start';
                 clearInterval(leftTimerInterval);
+                saveTimerState();
             }
         }
 
@@ -171,13 +270,17 @@
                 rightTimerInterval = setInterval(() => {
                     rightElapsed = Math.floor((Date.now() - rightStartTime) / 1000);
                     document.getElementById('rightTimerDisplay').textContent = formatTime(rightElapsed);
+                    saveTimerState();
                 }, 100);
+                
+                saveTimerState();
             } else {
                 // Pause timer
                 rightRunning = false;
                 btn.classList.remove('paused');
                 btn.textContent = 'Start';
                 clearInterval(rightTimerInterval);
+                saveTimerState();
             }
         }
 
@@ -193,6 +296,8 @@
             if (leftElapsed === 0 && rightElapsed === 0) {
                 overallStartTime = null;
             }
+            
+            saveTimerState();
         }
 
         function resetRightTimer() {
@@ -207,6 +312,8 @@
             if (leftElapsed === 0 && rightElapsed === 0) {
                 overallStartTime = null;
             }
+            
+            saveTimerState();
         }
 
         function addEntryFromTimers() {
@@ -266,6 +373,7 @@
                 document.getElementById('bottleAmount').value = '0';
                 resetLeftTimer();
                 resetRightTimer();
+                clearTimerState();
 
                 // Reload entries table
                 loadEntries();
