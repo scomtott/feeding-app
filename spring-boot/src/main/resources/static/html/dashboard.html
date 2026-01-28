@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Totals</title>
-    <link rel="stylesheet" href="../css/daily-totals.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
 </head>
 <body>
     <div class="container">
@@ -52,6 +52,19 @@
             </div>
         </div>
 
+        <div class="timeline-section">
+            <h2>Daily Timeline</h2>
+            <div class="timeline-date-selector">
+                <input type="date" id="timelineDate" required>
+            </div>
+            <div id="timelineContainer" class="timeline-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading timeline...</p>
+                </div>
+            </div>
+        </div>
+
         <div class="entries-section">
             <h2>All Entries</h2>
             <div class="entries-table-container">
@@ -90,9 +103,14 @@
             const now = new Date();
             document.getElementById('date').valueAsDate = now;
             document.getElementById('time').value = now.toTimeString().substring(0, 5);
+            document.getElementById('timelineDate').valueAsDate = now;
             loadDailyTotals();
             loadEntries();
+            loadTimeline();
         });
+
+        // Load timeline when date changes
+        document.getElementById('timelineDate').addEventListener('change', loadTimeline);
 
         // Handle form submission
         document.getElementById('entryForm').addEventListener('submit', async (e) => {
@@ -338,7 +356,135 @@
                 alert(`Failed to delete entries: ${error.message}`);
             }
         }
+
+        // Load and display timeline
+        async function loadTimeline() {
+            const selectedDate = document.getElementById('timelineDate').value;
+            
+            try {
+                // Fetch both breastfeeding and pumping entries for the selected date
+                const [breastfeedingResponse, pumpingResponse] = await Promise.all([
+                    fetch(`/api/breastfeeding/entries?date=${selectedDate}`),
+                    fetch(`/api/pumping/entries?date=${selectedDate}`)
+                ]);
+
+                if (!breastfeedingResponse.ok || !pumpingResponse.ok) {
+                    throw new Error('Failed to fetch timeline data');
+                }
+
+                const breastfeedingEntries = await breastfeedingResponse.json();
+                const pumpingEntries = await pumpingResponse.json();
+
+                // Combine and sort entries by time
+                const allTimelineEntries = [
+                    ...breastfeedingEntries.map(entry => ({
+                        ...entry,
+                        type: 'breastfeeding',
+                        displayTime: entry.time
+                    })),
+                    ...pumpingEntries.map(entry => ({
+                        ...entry,
+                        type: 'pumping',
+                        displayTime: entry.time
+                    }))
+                ].sort((a, b) => a.displayTime.localeCompare(b.displayTime));
+
+                displayTimeline(allTimelineEntries, selectedDate);
+            } catch (error) {
+                document.getElementById('timelineContainer').innerHTML = `<div class="error">Failed to load timeline: ${error.message}</div>`;
+            }
+        }
+
+        function displayTimeline(entries, dateStr) {
+            const timelineContainer = document.getElementById('timelineContainer');
+            
+            if (entries.length === 0) {
+                timelineContainer.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No entries for this day</p>';
+                return;
+            }
+
+            // Separate breastfeeding and pumping entries
+            const breastfeedingEntries = entries.filter(e => e.type === 'breastfeeding');
+            const pumpingEntries = entries.filter(e => e.type === 'pumping');
+
+            // Create time slots for the day (24 hours)
+            const timelineHTML = `
+                <div class="timeline-day">
+                    <div class="timeline-hours">
+                        ${Array.from({length: 24}, (_, i) => `<div class="timeline-hour" data-hour="${i}">${String(i).padStart(2, '0')}:00</div>`).join('')}
+                    </div>
+                    
+                    <div class="timeline-section-label">Breastfeeding & Bottle</div>
+                    <div class="timeline-track breastfeeding-track" id="breastfeedingTrack">
+                        ${breastfeedingEntries.map((entry, index) => createBreastfeedingEvent(entry)).join('')}
+                    </div>
+
+                    <div class="timeline-section-label">Pumping</div>
+                    <div class="timeline-track pumping-track" id="pumpingTrack">
+                        ${pumpingEntries.map((entry, index) => createPumpingEvent(entry)).join('')}
+                    </div>
+                </div>
+            `;
+
+            timelineContainer.innerHTML = timelineHTML;
+        }
+
+        function createBreastfeedingEvent(entry) {
+            const time = entry.displayTime.split(':');
+            const hour = parseInt(time[0]);
+            const minute = parseInt(time[1]);
+            const percentPosition = ((hour * 60 + minute) / (24 * 60)) * 100;
+
+            const breastTotal = (entry.leftBreastAmount || 0) + (entry.rightBreastAmount || 0);
+            const bottleOnly = breastTotal === 0 && (entry.bottleAmount || 0) > 0;
+            const breastOnly = breastTotal > 0 && (entry.bottleAmount || 0) === 0;
+            const mixed = breastTotal > 0 && (entry.bottleAmount || 0) > 0;
+
+            let entryClass = 'timeline-event breastfeeding';
+            let icon = '🤱';
+            let label = '';
+            let tooltip = '';
+
+            if (bottleOnly) {
+                entryClass = 'timeline-event bottle-only';
+                icon = '🍼';
+                label = `${entry.bottleAmount}ml`;
+                tooltip = `Bottle at ${entry.displayTime}\nBottle: ${entry.bottleAmount}ml`;
+            } else if (mixed) {
+                entryClass = 'timeline-event breastfeeding mixed';
+                label = `${breastTotal}ml+${entry.bottleAmount}ml`;
+                tooltip = `Mixed feeding at ${entry.displayTime}\nBreast: ${breastTotal}ml (L: ${entry.leftBreastAmount}ml, R: ${entry.rightBreastAmount}ml)\nBottle: ${entry.bottleAmount}ml`;
+            } else {
+                label = `${breastTotal}ml`;
+                tooltip = `Breastfeeding at ${entry.displayTime}\nLeft: ${entry.leftBreastAmount}ml | Right: ${entry.rightBreastAmount}ml`;
+            }
+
+            return `
+                <div class="${entryClass}" style="left: ${percentPosition}%" data-time="${entry.displayTime}" title="${tooltip}">
+                    <div class="event-icon">${icon}</div>
+                    <div class="event-label">${label}</div>
+                </div>
+            `;
+        }
+
+        function createPumpingEvent(entry) {
+            const time = entry.displayTime.split(':');
+            const hour = parseInt(time[0]);
+            const minute = parseInt(time[1]);
+            const percentPosition = ((hour * 60 + minute) / (24 * 60)) * 100;
+
+            const icon = entry.isPowerPump ? '⚡' : '🔄';
+            const label = `${entry.amount}ml`;
+            const tooltip = `Pumping at ${entry.displayTime}\nAmount: ${entry.amount}ml${entry.isPowerPump ? '\n(Power Pump)' : ''}`;
+
+            return `
+                <div class="timeline-event pumping" style="left: ${percentPosition}%" data-time="${entry.displayTime}" title="${tooltip}">
+                    <div class="event-icon">${icon}</div>
+                    <div class="event-label">${label}</div>
+                </div>
+            `;
+        }
     </script>
-    <script src="nav.js"></script>
+    <script src="../js/nav.js"></script>
 </body>
 </html>

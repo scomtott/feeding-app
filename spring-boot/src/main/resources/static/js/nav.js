@@ -4,11 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!nav) return;
 
     // Get current page filename
-    const currentPage = window.location.pathname.split('/').pop() || 'daily-totals.html';
+    const currentPage = window.location.pathname.split('/').pop() || 'dashboard.html';
 
     // Navigation items
     const navItems = [
-        { href: 'daily-totals.html', label: 'Daily Totals' },
+        { href: 'dashboard.html', label: 'Dashboard' },
         { href: 'feeding.html', label: 'Feeding' },
         { href: 'pumping.html', label: 'Pumping' },
         { href: 'weight-tracker.html', label: 'Weight Tracker' }
