@@ -26,6 +26,79 @@ h1 {
     font-size: 24px;
 }
 
+.daily-summary-section {
+    background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 5px solid #4CAF50;
+}
+
+.daily-summary-section h2 {
+    font-size: 18px;
+    color: #333;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.summary-date-selector {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.summary-date-selector label {
+    font-size: 14px;
+    color: #666;
+    font-weight: bold;
+}
+
+.summary-date-selector input {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.summary-date-selector input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.summary-card {
+    background-color: white;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.summary-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.summary-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #4CAF50;
+    font-family: 'Courier New', monospace;
+}
+
 .controls {
     display: flex;
     gap: 10px;
@@ -328,6 +401,23 @@ nav a.active {
         margin-bottom: 15px;
     }
 
+    .summary-date-selector {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .summary-date-selector input {
+        width: 100%;
+    }
+
+    .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .summary-value {
+        font-size: 18px;
+    }
+
     #content {
         height: 100%;
     }
@@ -345,6 +435,50 @@ nav a.active {
     h1 {
         font-size: 18px;
         margin-bottom: 10px;
+    }
+
+    .daily-summary-section {
+        padding: 12px;
+        margin-bottom: 15px;
+    }
+
+    .daily-summary-section h2 {
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+
+    .summary-date-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+
+    .summary-date-selector label {
+        font-size: 12px;
+    }
+
+    .summary-date-selector input {
+        width: 100%;
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+
+    .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .summary-card {
+        padding: 10px;
+    }
+
+    .summary-label {
+        font-size: 10px;
+        margin-bottom: 5px;
+    }
+
+    .summary-value {
+        font-size: 16px;
     }
 
     .form-grid {

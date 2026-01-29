@@ -11,6 +11,40 @@
         <nav id="main-nav"></nav>
         
         <h1>Daily Feeding Totals</h1>
+
+        <div class="daily-summary-section">
+            <h2>Daily Summary</h2>
+            <div class="summary-date-selector">
+                <label for="summaryDate">Select Date:</label>
+                <input type="date" id="summaryDate" required>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">Pumping Total</div>
+                    <div class="summary-value" id="pumpingTotal">0 ml</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Left Breast</div>
+                    <div class="summary-value" id="leftBreastTotal">0 sec</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Right Breast</div>
+                    <div class="summary-value" id="rightBreastTotal">0 sec</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Total Breast</div>
+                    <div class="summary-value" id="breastTotal">0 sec</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Bottle Total</div>
+                    <div class="summary-value" id="bottleTotal">0 ml</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Pumping vs Bottle</div>
+                    <div class="summary-value" id="pumpingVsBottle">0 ml</div>
+                </div>
+            </div>
+        </div>
         
         <div class="form-section">
             <h2>Add New Entry</h2>
@@ -25,11 +59,11 @@
                         <input type="time" id="time" name="time" required>
                     </div>
                     <div class="form-group">
-                        <label for="leftBreastAmount">Left Breast (seconds)</label>
+                        <label for="leftBreastAmount">Left Breast (minutes)</label>
                         <input type="number" id="leftBreastAmount" name="leftBreastAmount" min="0" value="0" required>
                     </div>
                     <div class="form-group">
-                        <label for="rightBreastAmount">Right Breast (seconds)</label>
+                        <label for="rightBreastAmount">Right Breast (minutes)</label>
                         <input type="number" id="rightBreastAmount" name="rightBreastAmount" min="0" value="0" required>
                     </div>
                     <div class="form-group">
@@ -74,9 +108,9 @@
                             <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
                             <th>Date</th>
                             <th>Time</th>
-                            <th>Left Breast (sec)</th>
-                            <th>Right Breast (sec)</th>
-                            <th>Total Breast (sec)</th>
+                            <th>Left Breast (min)</th>
+                            <th>Right Breast (min)</th>
+                            <th>Total Breast (min)</th>
                             <th>Bottle (ml)</th>
                         </tr>
                     </thead>
@@ -104,9 +138,16 @@
             document.getElementById('date').valueAsDate = now;
             document.getElementById('time').value = now.toTimeString().substring(0, 5);
             document.getElementById('timelineDate').valueAsDate = now;
+            document.getElementById('summaryDate').valueAsDate = now;
             loadDailyTotals();
             loadEntries();
             loadTimeline();
+            loadTodaysSummary();
+        });
+
+        // Load summary when date changes
+        document.getElementById('summaryDate').addEventListener('change', () => {
+            loadTodaysSummary();
         });
 
         // Load timeline when date changes
@@ -152,6 +193,8 @@
                 // Reload the graph and entries table
                 loadDailyTotals();
                 loadEntries();
+                loadTodaysSummary();
+                loadTimeline();
             } catch (error) {
                 alert(`Failed to add entry: ${error.message}`);
             }
@@ -199,7 +242,7 @@
                     labels: dates,
                     datasets: [
                         {
-                            label: 'Breast (s)',
+                            label: 'Breast (min)',
                             data: breastTotals,
                             borderColor: '#4CAF50',
                             backgroundColor: 'rgba(76, 175, 80, 0.1)',
@@ -267,6 +310,61 @@
 
         function displayError(message) {
             document.getElementById('content').innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        // Load and display summary for selected date
+        async function loadTodaysSummary() {
+            const selectedDate = document.getElementById('summaryDate').value;
+            
+            try {
+                const [breastfeedingResponse, pumpingResponse] = await Promise.all([
+                    fetch(`/api/breastfeeding/entries?date=${selectedDate}`),
+                    fetch(`/api/pumping/entries?date=${selectedDate}`)
+                ]);
+
+                let leftBreastTotal = 0;
+                let rightBreastTotal = 0;
+                let bottleTotal = 0;
+                let pumpingTotal = 0;
+
+                if (breastfeedingResponse.ok) {
+                    const breastfeedingEntries = await breastfeedingResponse.json();
+                    leftBreastTotal = breastfeedingEntries.reduce((sum, e) => sum + (e.leftBreastAmount || 0), 0);
+                    rightBreastTotal = breastfeedingEntries.reduce((sum, e) => sum + (e.rightBreastAmount || 0), 0);
+                    bottleTotal = breastfeedingEntries.reduce((sum, e) => sum + (e.bottleAmount || 0), 0);
+                }
+
+                if (pumpingResponse.ok) {
+                    const pumpingEntries = await pumpingResponse.json();
+                    pumpingTotal = pumpingEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
+                }
+
+                const breastTotal = leftBreastTotal + rightBreastTotal;
+                const difference = pumpingTotal - bottleTotal;
+
+                // Update display
+                document.getElementById('pumpingTotal').textContent = `${pumpingTotal} ml`;
+                document.getElementById('leftBreastTotal').textContent = `${leftBreastTotal} min`;
+                document.getElementById('rightBreastTotal').textContent = `${rightBreastTotal} min`;
+                document.getElementById('breastTotal').textContent = `${breastTotal} min`;
+                document.getElementById('bottleTotal').textContent = `${bottleTotal} ml`;
+                
+                const diffElement = document.getElementById('pumpingVsBottle');
+                diffElement.textContent = `${difference > 0 ? '+' : ''}${difference} ml`;
+                
+                if (difference > 0) {
+                    diffElement.style.color = '#4CAF50';
+                    diffElement.style.fontWeight = 'bold';
+                } else if (difference < 0) {
+                    diffElement.style.color = '#f44336';
+                    diffElement.style.fontWeight = 'bold';
+                } else {
+                    diffElement.style.color = '#333';
+                    diffElement.style.fontWeight = 'normal';
+                }
+            } catch (error) {
+                console.error('Failed to load summary:', error);
+            }
         }
 
         // Load entries and display in table
@@ -452,11 +550,11 @@
                 tooltip = `Bottle at ${entry.displayTime}\nBottle: ${entry.bottleAmount}ml`;
             } else if (mixed) {
                 entryClass = 'timeline-event breastfeeding mixed';
-                label = `${breastTotal}s+${entry.bottleAmount}ml`;
-                tooltip = `Mixed feeding at ${entry.displayTime}\nBreast: ${breastTotal}sec (L: ${entry.leftBreastAmount}sec, R: ${entry.rightBreastAmount}sec)\nBottle: ${entry.bottleAmount}ml`;
+                label = `${breastTotal}m+${entry.bottleAmount}ml`;
+                tooltip = `Mixed feeding at ${entry.displayTime}\nBreast: ${breastTotal}min (L: ${entry.leftBreastAmount}min, R: ${entry.rightBreastAmount}min)\nBottle: ${entry.bottleAmount}ml`;
             } else {
-                label = `${breastTotal}s`;
-                tooltip = `Breastfeeding at ${entry.displayTime}\nLeft: ${entry.leftBreastAmount}sec | Right: ${entry.rightBreastAmount}sec`;
+                label = `${breastTotal}m`;
+                tooltip = `Breastfeeding at ${entry.displayTime}\nLeft: ${entry.leftBreastAmount}min | Right: ${entry.rightBreastAmount}min`;
             }
 
             return `
