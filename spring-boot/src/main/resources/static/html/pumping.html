@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pumping Tracker</title>
     <link rel="stylesheet" href="../css/pumping.css">
+    <script src="../js/logger.js"></script>
 </head>
 <body>
     <div class="container">
@@ -83,25 +84,34 @@
 
         // Set default date and time to now
         document.addEventListener('DOMContentLoaded', () => {
-            const now = new Date();
-            document.getElementById('date').valueAsDate = now;
-            document.getElementById('time').value = now.toTimeString().substring(0, 5);
-            loadDailyTotals();
-            loadEntries();
+            try {
+                window.appLogger?.info('Pumping page loaded');
+                
+                const now = new Date();
+                document.getElementById('date').valueAsDate = now;
+                document.getElementById('time').value = now.toTimeString().substring(0, 5);
+                
+                loadDailyTotals();
+                loadEntries();
+            } catch (error) {
+                window.appLogger?.error('Error during pumping page initialization', { error: error.message });
+            }
         });
 
         // Handle form submission
         document.getElementById('pumpingForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = {
-                date: document.getElementById('date').value,
-                time: document.getElementById('time').value,
-                amount: parseInt(document.getElementById('amount').value),
-                isPowerPump: document.getElementById('isPowerPump').checked
-            };
-
             try {
+                const formData = {
+                    date: document.getElementById('date').value,
+                    time: document.getElementById('time').value,
+                    amount: parseInt(document.getElementById('amount').value),
+                    isPowerPump: document.getElementById('isPowerPump').checked
+                };
+
+                window.appLogger?.info('Submitting pumping entry', { formData });
+
                 const response = await fetch('/api/pumping/entries', {
                     method: 'POST',
                     headers: {
@@ -113,6 +123,8 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
+
+                window.appLogger?.info('Pumping entry submitted successfully');
 
                 // Show success message
                 const successMsg = document.getElementById('successMessage');
@@ -129,6 +141,7 @@
                 loadDailyTotals();
                 loadEntries();
             } catch (error) {
+                window.appLogger?.error('Error submitting pumping entry', { error: error.message });
                 alert(`Failed to add entry: ${error.message}`);
             }
         });
@@ -136,156 +149,177 @@
         // Fetch and display daily totals
         async function loadDailyTotals() {
             try {
+                window.appLogger?.debug('Loading daily pumping totals');
+                
                 const response = await fetch('/api/pumping/dailyTotals');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
+                
+                window.appLogger?.debug('Daily totals loaded', { count: data.length });
                 displayChart(data);
             } catch (error) {
+                window.appLogger?.error('Error loading daily totals', { error: error.message });
                 displayError(`Failed to load data: ${error.message}`);
             }
         }
 
         function displayChart(totals) {
-            if (totals.length === 0) {
-                document.getElementById('content').innerHTML = '<p style="text-align: center; color: #666;">No data available</p>';
-                return;
-            }
+            try {
+                if (totals.length === 0) {
+                    window.appLogger?.info('No pumping data available');
+                    document.getElementById('content').innerHTML = '<p style="text-align: center; color: #666;">No data available</p>';
+                    return;
+                }
 
-            const dates = totals.map(t => new Date(t.date).toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
-            }));
-            const amounts = totals.map(t => t.amount);
-            const counts = totals.map(t => t.count);
+                const dates = totals.map(t => new Date(t.date).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                }));
+                const amounts = totals.map(t => t.amount);
+                const counts = totals.map(t => t.count);
 
-            const canvasHtml = '<canvas id="totalsChart"></canvas>';
-            document.getElementById('content').innerHTML = canvasHtml;
+                window.appLogger?.debug('Displaying chart', { dataPoints: dates.length, minAmount: Math.min(...amounts), maxAmount: Math.max(...amounts) });
 
-            const ctx = document.getElementById('totalsChart').getContext('2d');
-            
-            if (chart) {
-                chart.destroy();
-            }
+                const canvasHtml = '<canvas id="totalsChart"></canvas>';
+                document.getElementById('content').innerHTML = canvasHtml;
 
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [
-                        {
-                            label: 'Amount (ml)',
-                            data: amounts,
-                            borderColor: '#9C27B0',
-                            backgroundColor: 'rgba(156, 39, 176, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#9C27B0',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Sessions',
-                            data: counts,
-                            borderColor: '#FF9800',
-                            backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#FF9800',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2,
-                            yAxisID: 'y1'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 11 : 14
-                                },
-                                padding: window.innerWidth <= 480 ? 10 : 20,
-                                usePointStyle: true
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Amount (ml)'
+                const ctx = document.getElementById('totalsChart').getContext('2d');
+                
+                if (chart) {
+                    window.appLogger?.debug('Destroying existing chart instance');
+                    chart.destroy();
+                }
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: 'Amount (ml)',
+                                data: amounts,
+                                borderColor: '#9C27B0',
+                                backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                borderWidth: 2,
+                                pointRadius: 4,
+                                pointBackgroundColor: '#9C27B0',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                yAxisID: 'y'
                             },
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 10 : 12
+                            {
+                                label: 'Sessions',
+                                data: counts,
+                                borderColor: '#FF9800',
+                                backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                borderWidth: 2,
+                                pointRadius: 4,
+                                pointBackgroundColor: '#FF9800',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    font: {
+                                        size: window.innerWidth <= 480 ? 11 : 14
+                                    },
+                                    padding: window.innerWidth <= 480 ? 10 : 20,
+                                    usePointStyle: true
                                 }
                             }
                         },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            beginAtZero: true,
-                            title: {
+                        scales: {
+                            y: {
+                                type: 'linear',
                                 display: true,
-                                text: 'Sessions'
-                            },
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 10 : 12
+                                position: 'left',
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Amount (ml)'
+                                },
+                                ticks: {
+                                    font: {
+                                        size: window.innerWidth <= 480 ? 10 : 12
+                                    }
                                 }
                             },
-                            grid: {
-                                drawOnChartArea: false
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 9 : 12
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Sessions'
                                 },
-                                maxRotation: window.innerWidth <= 480 ? 45 : 0,
-                                minRotation: window.innerWidth <= 480 ? 45 : 0
+                                ticks: {
+                                    font: {
+                                        size: window.innerWidth <= 480 ? 10 : 12
+                                    }
+                                },
+                                grid: {
+                                    drawOnChartArea: false
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: window.innerWidth <= 480 ? 9 : 12
+                                    },
+                                    maxRotation: window.innerWidth <= 480 ? 45 : 0,
+                                    minRotation: window.innerWidth <= 480 ? 45 : 0
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+                
+                window.appLogger?.info('Chart rendered successfully');
+            } catch (error) {
+                window.appLogger?.error('Error displaying chart', { error: error.message });
+            }
         }
 
         function displayError(message) {
+            window.appLogger?.error('Displaying error message', { message });
             document.getElementById('content').innerHTML = `<div class="error">${message}</div>`;
         }
 
         // Load entries and display in table
         async function loadEntries() {
             try {
+                window.appLogger?.debug('Loading pumping entries');
+                
                 const response = await fetch('/api/pumping/entries?direction=DESC');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 allEntries = await response.json();
+                
+                window.appLogger?.debug('Pumping entries loaded', { count: allEntries.length });
                 displayEntries();
             } catch (error) {
+                window.appLogger?.error('Error loading pumping entries', { error: error.message });
                 document.getElementById('entriesTableBody').innerHTML = `<tr><td colspan="5" style="color: red;">Failed to load entries: ${error.message}</td></tr>`;
             }
         }
@@ -337,10 +371,13 @@
             }
 
             if (!confirm(`Delete ${selected.length} entry(ies)?`)) {
+                window.appLogger?.debug('Delete cancelled by user', { count: selected.length });
                 return;
             }
 
             try {
+                window.appLogger?.warn('Deleting pumping entries', { ids: selected, count: selected.length });
+                
                 const response = await fetch('/api/pumping/entries/batch', {
                     method: 'DELETE',
                     headers: {
@@ -353,11 +390,14 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
+                window.appLogger?.info('Pumping entries deleted successfully', { count: selected.length });
+
                 // Reload data
                 loadEntries();
                 loadDailyTotals();
                 document.getElementById('selectAllCheckbox').checked = false;
             } catch (error) {
+                window.appLogger?.error('Error deleting pumping entries', { error: error.message, ids: selected });
                 alert(`Failed to delete entries: ${error.message}`);
             }
         }

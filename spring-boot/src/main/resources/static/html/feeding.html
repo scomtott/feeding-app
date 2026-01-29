@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Feeding</title>
     <link rel="stylesheet" href="../css/feeding.css">
+    <script src="../js/logger.js"></script>
 </head>
 <body>
     <div class="container">
@@ -111,16 +112,25 @@
                 overallStartTime: overallStartTime ? overallStartTime.toISOString() : null
             };
             sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            window.appLogger?.debug('Timer state saved', { 
+                leftElapsed: timerStates['left-timer'].elapsed,
+                rightElapsed: timerStates['right-timer'].elapsed,
+                leftRunning: timerStates['left-timer'].running,
+                rightRunning: timerStates['right-timer'].running
+            });
         }
 
         // Load timer state from sessionStorage
         function loadTimerState() {
             const saved = sessionStorage.getItem(STORAGE_KEY);
-            if (!saved) return false;
+            if (!saved) {
+                window.appLogger?.debug('No saved timer state found');
+                return false;
+            }
 
             try {
                 const state = JSON.parse(saved);
-                console.log('Loaded timer state:', state);
+                window.appLogger?.debug('Loading timer state from storage', { state });
                 
                 // Restore overall start time
                 if (state.overallStartTime) {
@@ -139,13 +149,14 @@
                             timerStates[timerId].startTime = savedTimerState.startTime;
                             timerStates[timerId].elapsed = Math.floor((now - timerStates[timerId].startTime) / 1000);
                             timerStates[timerId].running = true;
+                            window.appLogger?.info('Timer state restored and running', { timerId, elapsed: timerStates[timerId].elapsed });
                         }
                     }
                 });
 
                 return true;
             } catch (e) {
-                console.error('Error loading timer state:', e);
+                window.appLogger?.error('Error loading timer state', { error: e.message });
                 return false;
             }
         }
@@ -153,6 +164,7 @@
         // Clear timer state from sessionStorage
         function clearTimerState() {
             sessionStorage.removeItem(STORAGE_KEY);
+            window.appLogger?.debug('Timer state cleared from storage');
         }
 
         // Format seconds to HH:MM:SS
@@ -165,162 +177,197 @@
 
         // Set default date and time to now
         document.addEventListener('DOMContentLoaded', () => {
-            const now = new Date();
-            document.getElementById('date').valueAsDate = now;
-            document.getElementById('time').value = now.toTimeString().substring(0, 5);
-            
-            // Load saved timer state
-            if (loadTimerState()) {
-                // Update display with restored times and resume running timers
-                Object.keys(timerStates).forEach(timerId => {
-                    const state = timerStates[timerId];
-                    const displayEl = document.getElementById(`${timerId}-display`);
-                    if (displayEl) {
-                        displayEl.textContent = formatTime(state.elapsed);
-                    }
-                    
-                    if (state.running) {
-                        const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
-                        if (btn) {
-                            btn.classList.add('paused');
-                            btn.textContent = 'Pause';
+            try {
+                window.appLogger?.info('Feeding page loaded');
+                
+                const now = new Date();
+                document.getElementById('date').valueAsDate = now;
+                document.getElementById('time').value = now.toTimeString().substring(0, 5);
+                
+                // Load saved timer state
+                if (loadTimerState()) {
+                    window.appLogger?.info('Successfully loaded saved timer state');
+                    // Update display with restored times and resume running timers
+                    Object.keys(timerStates).forEach(timerId => {
+                        const state = timerStates[timerId];
+                        const displayEl = document.getElementById(`${timerId}-display`);
+                        if (displayEl) {
+                            displayEl.textContent = formatTime(state.elapsed);
                         }
                         
-                        // Resume the timer
-                        state.interval = setInterval(() => {
-                            state.elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-                            if (displayEl) {
-                                displayEl.textContent = formatTime(state.elapsed);
+                        if (state.running) {
+                            const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
+                            if (btn) {
+                                btn.classList.add('paused');
+                                btn.textContent = 'Pause';
                             }
-                            saveTimerState();
-                        }, 100);
-                    }
-                });
+                            
+                            // Resume the timer
+                            state.interval = setInterval(() => {
+                                state.elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                                if (displayEl) {
+                                    displayEl.textContent = formatTime(state.elapsed);
+                                }
+                                saveTimerState();
+                            }, 100);
+                            window.appLogger?.debug('Timer resumed after page load', { timerId });
+                        }
+                    });
+                } else {
+                    window.appLogger?.debug('No saved timer state to restore');
+                }
+                
+                loadEntries();
+            } catch (error) {
+                window.appLogger?.error('Error during page initialization', { error: error.message });
             }
-            
-            loadEntries();
         });
 
         function toggleTimer(timerId) {
-            const state = timerStates[timerId];
-            if (!state) {
-                console.error(`Timer ${timerId} not found`);
-                return;
-            }
-            
-            const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
-            const displayEl = document.getElementById(`${timerId}-display`);
-            
-            if (!state.running) {
-                // Start timer
-                if (!overallStartTime) {
-                    overallStartTime = new Date();
-                    const now = overallStartTime;
-                    document.getElementById('date').valueAsDate = now;
-                    document.getElementById('time').value = now.toTimeString().substring(0, 5);
+            try {
+                const state = timerStates[timerId];
+                if (!state) {
+                    window.appLogger?.error('Timer not found', { timerId });
+                    console.error(`Timer ${timerId} not found`);
+                    return;
                 }
                 
-                state.running = true;
-                state.startTime = Date.now() - (state.elapsed * 1000);
+                const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
+                const displayEl = document.getElementById(`${timerId}-display`);
                 
-                state.interval = setInterval(() => {
-                    state.elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-                    if (displayEl) {
-                        displayEl.textContent = formatTime(state.elapsed);
+                if (!state.running) {
+                    // Start timer
+                    window.appLogger?.info('Timer started', { timerId });
+                    
+                    if (!overallStartTime) {
+                        overallStartTime = new Date();
+                        const now = overallStartTime;
+                        document.getElementById('date').valueAsDate = now;
+                        document.getElementById('time').value = now.toTimeString().substring(0, 5);
+                        window.appLogger?.debug('Overall start time set', { time: now.toISOString() });
+                    }
+                    
+                    state.running = true;
+                    state.startTime = Date.now() - (state.elapsed * 1000);
+                    
+                    state.interval = setInterval(() => {
+                        state.elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                        if (displayEl) {
+                            displayEl.textContent = formatTime(state.elapsed);
+                        }
+                        saveTimerState();
+                    }, 100);
+                    
+                    if (btn) {
+                        btn.classList.add('paused');
+                        btn.textContent = 'Pause';
                     }
                     saveTimerState();
-                }, 100);
-                
-                if (btn) {
-                    btn.classList.add('paused');
-                    btn.textContent = 'Pause';
+                } else {
+                    // Pause timer
+                    window.appLogger?.info('Timer paused', { timerId, elapsed: state.elapsed });
+                    
+                    state.running = false;
+                    clearInterval(state.interval);
+                    state.interval = null;
+                    
+                    if (btn) {
+                        btn.classList.remove('paused');
+                        btn.textContent = 'Start';
+                    }
+                    saveTimerState();
                 }
-                saveTimerState();
-            } else {
-                // Pause timer
-                state.running = false;
-                clearInterval(state.interval);
-                state.interval = null;
-                
-                if (btn) {
-                    btn.classList.remove('paused');
-                    btn.textContent = 'Start';
-                }
-                saveTimerState();
+            } catch (error) {
+                window.appLogger?.error('Error toggling timer', { timerId, error: error.message });
             }
         }
 
         function resetTimer(timerId) {
-            if (!confirm('Are you sure you want to reset this timer?')) {
-                return;
+            try {                
+                const state = timerStates[timerId];
+                if (!state) {
+                    window.appLogger?.error('Timer not found during reset', { timerId });
+                    console.error(`Timer ${timerId} not found`);
+                    return;
+                }
+                
+                window.appLogger?.warn('Timer reset', { timerId, previousElapsed: state.elapsed });
+                
+                clearInterval(state.interval);
+                state.running = false;
+                state.elapsed = 0;
+                state.startTime = null;
+                state.interval = null;
+                
+                const displayEl = document.getElementById(`${timerId}-display`);
+                if (displayEl) {
+                    displayEl.textContent = '00:00:00';
+                }
+                
+                const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
+                if (btn) {
+                    btn.textContent = 'Start';
+                    btn.classList.remove('paused');
+                }
+                
+                // Check if all timers are reset
+                const allReset = Object.values(timerStates).every(t => t.elapsed === 0);
+                if (allReset) {
+                    overallStartTime = null;
+                    window.appLogger?.debug('All timers reset, overall start time cleared');
+                }
+                
+                saveTimerState();
+            } catch (error) {
+                window.appLogger?.error('Error resetting timer', { timerId, error: error.message });
             }
-            
-            const state = timerStates[timerId];
-            if (!state) {
-                console.error(`Timer ${timerId} not found`);
-                return;
-            }
-            
-            clearInterval(state.interval);
-            state.running = false;
-            state.elapsed = 0;
-            state.startTime = null;
-            state.interval = null;
-            
-            const displayEl = document.getElementById(`${timerId}-display`);
-            if (displayEl) {
-                displayEl.textContent = '00:00:00';
-            }
-            
-            const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
-            if (btn) {
-                btn.textContent = 'Start';
-                btn.classList.remove('paused');
-            }
-            
-            // Check if all timers are reset
-            const allReset = Object.values(timerStates).every(t => t.elapsed === 0);
-            if (allReset) {
-                overallStartTime = null;
-            }
-            
-            saveTimerState();
         }
 
         function addEntryFromTimers() {
-            loadTimerState();
-            
-            // Round to nearest minute
-            const leftMinutes = Math.round(timerStates['left-timer'].elapsed / 60);
-            const rightMinutes = Math.round(timerStates['right-timer'].elapsed / 60);
+            try {
+                window.appLogger?.info('Adding entry from timers');
+                
+                loadTimerState();
+                
+                // Round to nearest minute
+                const leftMinutes = Math.round(timerStates['left-timer'].elapsed / 60);
+                const rightMinutes = Math.round(timerStates['right-timer'].elapsed / 60);
 
-            // Do nothing if both timers are 0
-            if (leftMinutes === 0 && rightMinutes === 0) {
-                alert('Please run at least one timer to more than 30 seconds before adding an entry');
-                return;
+                // Do nothing if both timers are 0
+                if (leftMinutes === 0 && rightMinutes === 0) {
+                    window.appLogger?.warn('Cannot add entry: both timers are 0');
+                    alert('Please run at least one timer to more than 30 seconds before adding an entry');
+                    return;
+                }
+
+                window.appLogger?.debug('Timer values rounded', { leftMinutes, rightMinutes });
+
+                // Fill in the form with rounded timer values
+                document.getElementById('leftBreastAmount').value = leftMinutes;
+                document.getElementById('rightBreastAmount').value = rightMinutes;
+                
+                // Submit the form
+                document.getElementById('entryForm').dispatchEvent(new Event('submit'));
+            } catch (error) {
+                window.appLogger?.error('Error adding entry from timers', { error: error.message });
             }
-
-            // Fill in the form with rounded timer values
-            document.getElementById('leftBreastAmount').value = leftMinutes;
-            document.getElementById('rightBreastAmount').value = rightMinutes;
-            
-            // Submit the form
-            document.getElementById('entryForm').dispatchEvent(new Event('submit'));
         }
 
         // Handle form submission
         document.getElementById('entryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = {
-                date: document.getElementById('date').value,
-                time: document.getElementById('time').value,
-                leftBreastAmount: parseInt(document.getElementById('leftBreastAmount').value),
-                rightBreastAmount: parseInt(document.getElementById('rightBreastAmount').value),
-                bottleAmount: parseInt(document.getElementById('bottleAmount').value)
-            };
-
             try {
+                const formData = {
+                    date: document.getElementById('date').value,
+                    time: document.getElementById('time').value,
+                    leftBreastAmount: parseInt(document.getElementById('leftBreastAmount').value),
+                    rightBreastAmount: parseInt(document.getElementById('rightBreastAmount').value),
+                    bottleAmount: parseInt(document.getElementById('bottleAmount').value)
+                };
+
+                window.appLogger?.info('Submitting feeding entry', { formData });
+
                 const response = await fetch('/api/breastfeeding/entries', {
                     method: 'POST',
                     headers: {
@@ -332,6 +379,8 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
+
+                window.appLogger?.info('Feeding entry submitted successfully');
 
                 // Show success message
                 const successMsg = document.getElementById('successMessage');
@@ -351,6 +400,7 @@
                 // Reload entries table
                 loadEntries();
             } catch (error) {
+                window.appLogger?.error('Error submitting feeding entry', { error: error.message });
                 alert(`Failed to add entry: ${error.message}`);
             }
         });
@@ -358,13 +408,18 @@
         // Load entries and display in table
         async function loadEntries() {
             try {
+                window.appLogger?.debug('Loading feeding entries');
+                
                 const response = await fetch('/api/breastfeeding/entries?direction=DESC');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 allEntries = await response.json();
+                
+                window.appLogger?.debug('Feeding entries loaded', { count: allEntries.length });
                 displayEntries();
             } catch (error) {
+                window.appLogger?.error('Error loading feeding entries', { error: error.message });
                 document.getElementById('entriesTableBody').innerHTML = `<tr><td colspan="7" style="color: red;">Failed to load entries: ${error.message}</td></tr>`;
             }
         }
@@ -418,10 +473,13 @@
             }
 
             if (!confirm(`Delete ${selected.length} entry(ies)?`)) {
+                window.appLogger?.debug('Delete cancelled by user', { count: selected.length });
                 return;
             }
 
             try {
+                window.appLogger?.warn('Deleting entries', { ids: selected, count: selected.length });
+                
                 const response = await fetch('/api/breastfeeding/entries/batch', {
                     method: 'DELETE',
                     headers: {
@@ -434,10 +492,13 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
+                window.appLogger?.info('Entries deleted successfully', { count: selected.length });
+
                 // Reload data
                 loadEntries();
                 document.getElementById('selectAllCheckbox').checked = false;
             } catch (error) {
+                window.appLogger?.error('Error deleting entries', { error: error.message, ids: selected });
                 alert(`Failed to delete entries: ${error.message}`);
             }
         }
