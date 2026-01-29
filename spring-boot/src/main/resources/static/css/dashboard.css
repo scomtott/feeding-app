@@ -549,110 +549,124 @@ nav a.active {
 
 @media (max-width: 480px) {
     .timeline-container {
-        padding: 10px;
-        min-height: 180px;
+        padding: 0;
+        min-height: 250px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .timeline-day {
-        min-height: 180px;
+        min-height: 250px;
+        display: block;
+        padding: 10px;
     }
 
     .timeline-hours {
-        display: none;
-    }
-
-    .timeline-track {
-        height: auto;
-        background: none;
-        border: none;
-        position: relative;
-        margin-bottom: 20px;
-        padding: 0;
-    }
-
-    .breastfeeding-track,
-    .pumping-track {
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        padding: 10px 0;
-        margin-bottom: 15px;
-    }
-
-    .breastfeeding-track {
-        border-left: 4px solid #4CAF50;
-    }
-
-    .pumping-track {
-        border-left: 4px solid #2196F3;
-    }
-
-    .timeline-event {
-        position: static;
-        transform: none;
         display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 12px;
-        margin: 5px 10px;
+        width: 2400px;
+        position: sticky;
+        top: 0;
         background-color: white;
-        border-radius: 4px;
-        width: calc(100% - 24px);
-    }
-
-    .timeline-event:hover {
-        transform: translateX(5px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    }
-
-    .timeline-event.breastfeeding {
-        background-color: rgba(76, 175, 80, 0.08);
-        border-left: 3px solid #4CAF50;
-        border: 1px solid #c8e6c9;
-    }
-
-    .timeline-event.bottle-only {
-        background-color: rgba(255, 152, 0, 0.08);
-        border: 1px solid #ffe0b2;
-    }
-
-    .timeline-event.mixed {
-        background-color: rgba(76, 175, 80, 0.08);
-        border: 1px solid #c8e6c9;
-        box-shadow: inset -3px 0 0 #FF9800;
-    }
-
-    .timeline-event.pumping {
-        background-color: rgba(33, 150, 243, 0.08);
-        border: 1px solid #bbdefb;
-    }
-
-    .event-icon {
-        font-size: 20px;
-        flex-shrink: 0;
-    }
-
-    .event-label {
-        font-size: 10px;
-        background-color: transparent;
+        z-index: 5;
+        margin-bottom: 5px;
+        border-bottom: 2px solid #e0e0e0;
         padding: 0;
-        box-shadow: none;
-        flex-shrink: 0;
     }
 
-    .timeline-event::before {
-        content: attr(data-time);
-        font-size: 12px;
+    .timeline-hour {
+        flex: 1;
+        font-size: 9px;
+        min-width: 100px;
+        text-align: center;
+        padding: 5px 0;
+        border-right: 1px solid #f0f0f0;
         font-weight: bold;
-        color: #333;
-        font-family: 'Courier New', monospace;
-        min-width: 50px;
-        flex-shrink: 0;
+    }
+
+    .timeline-hour:last-child {
+        border-right: none;
     }
 
     .timeline-section-label {
         font-size: 11px;
         margin-top: 12px;
         margin-bottom: 6px;
+        padding-left: 0;
+    }
+
+    .timeline-track {
+        height: 70px;
+        background: linear-gradient(to right, transparent 4.166%, rgba(200, 230, 201, 0.3) 4.166%, rgba(200, 230, 201, 0.3) 8.333%, transparent 8.333%, transparent 12.5%, rgba(200, 230, 201, 0.3) 12.5%, rgba(200, 230, 201, 0.3) 16.666%, transparent 16.666%), 
+                    linear-gradient(to right, transparent 4.166%, #f9f9f9 4.166%, #f9f9f9 8.333%, transparent 8.333%, transparent 12.5%, #f9f9f9 12.5%, #f9f9f9 16.666%, transparent 16.666%);
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        position: relative;
+        width: 2400px;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .breastfeeding-track {
+        border-color: #c8e6c9;
+        background: linear-gradient(to right, transparent 4.166%, rgba(200, 230, 201, 0.3) 4.166%, rgba(200, 230, 201, 0.3) 8.333%, transparent 8.333%, transparent 12.5%, rgba(200, 230, 201, 0.3) 12.5%, rgba(200, 230, 201, 0.3) 16.666%, transparent 16.666%), 
+                    linear-gradient(to right, transparent 4.166%, #f9f9f9 4.166%, #f9f9f9 8.333%, transparent 8.333%, transparent 12.5%, #f9f9f9 12.5%, #f9f9f9 16.666%, transparent 16.666%);
+    }
+
+    .pumping-track {
+        border-color: #bbdefb;
+        background: linear-gradient(to right, transparent 4.166%, rgba(187, 222, 251, 0.3) 4.166%, rgba(187, 222, 251, 0.3) 8.333%, transparent 8.333%, transparent 12.5%, rgba(187, 222, 251, 0.3) 12.5%, rgba(187, 222, 251, 0.3) 16.666%, transparent 16.666%), 
+                    linear-gradient(to right, transparent 4.166%, #f9f9f9 4.166%, #f9f9f9 8.333%, transparent 8.333%, transparent 12.5%, #f9f9f9 12.5%, #f9f9f9 16.666%, transparent 16.666%);
+    }
+
+    .timeline-event {
+        position: absolute;
+        top: 5px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        cursor: pointer;
+        transform: translateX(-50%);
+        transition: all 0.2s ease;
+        padding: 6px 2px;
+        border-radius: 4px;
+    }
+
+    .timeline-event:hover {
+        transform: translateX(-50%) scale(1.1);
+        z-index: 10;
+    }
+
+    .timeline-event.breastfeeding {
+        background-color: rgba(76, 175, 80, 0.2);
+        border: 2px solid #4CAF50;
+    }
+
+    .timeline-event.bottle-only {
+        background-color: rgba(255, 152, 0, 0.2);
+        border: 2px solid #FF9800;
+    }
+
+    .timeline-event.mixed {
+        background-color: rgba(76, 175, 80, 0.15);
+        border: 2px solid #4CAF50;
+        box-shadow: inset 0 0 0 1px #FF9800;
+    }
+
+    .timeline-event.pumping {
+        background-color: rgba(33, 150, 243, 0.2);
+        border: 2px solid #2196F3;
+    }
+
+    .event-icon {
+        font-size: 16px;
+    }
+
+    .event-label {
+        font-size: 8px;
+        background-color: white;
+        padding: 2px 3px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
 }
