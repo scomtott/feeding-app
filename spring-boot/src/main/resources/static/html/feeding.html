@@ -101,25 +101,26 @@
             'right-timer': { elapsed: 0, running: false, startTime: null, interval: null }
         };
 
-        // LocalStorage keys
+        // sessionStorage keys
         const STORAGE_KEY = 'feedingTimers';
 
-        // Save timer state to localStorage
+        // Save timer state to sessionStorage
         function saveTimerState() {
             const state = {
                 timerStates,
                 overallStartTime: overallStartTime ? overallStartTime.toISOString() : null
             };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
 
-        // Load timer state from localStorage
+        // Load timer state from sessionStorage
         function loadTimerState() {
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = sessionStorage.getItem(STORAGE_KEY);
             if (!saved) return false;
 
             try {
                 const state = JSON.parse(saved);
+                console.log('Loaded timer state:', state);
                 
                 // Restore overall start time
                 if (state.overallStartTime) {
@@ -149,9 +150,9 @@
             }
         }
 
-        // Clear timer state from localStorage
+        // Clear timer state from sessionStorage
         function clearTimerState() {
-            localStorage.removeItem(STORAGE_KEY);
+            sessionStorage.removeItem(STORAGE_KEY);
         }
 
         // Format seconds to HH:MM:SS
@@ -250,6 +251,10 @@
         }
 
         function resetTimer(timerId) {
+            if (!confirm('Are you sure you want to reset this timer?')) {
+                return;
+            }
+            
             const state = timerStates[timerId];
             if (!state) {
                 console.error(`Timer ${timerId} not found`);
@@ -283,13 +288,15 @@
         }
 
         function addEntryFromTimers() {
+            loadTimerState();
+            
             // Round to nearest minute
             const leftMinutes = Math.round(timerStates['left-timer'].elapsed / 60);
             const rightMinutes = Math.round(timerStates['right-timer'].elapsed / 60);
 
             // Do nothing if both timers are 0
             if (leftMinutes === 0 && rightMinutes === 0) {
-                alert('Please run at least one timer before adding an entry');
+                alert('Please run at least one timer to more than 30 seconds before adding an entry');
                 return;
             }
 

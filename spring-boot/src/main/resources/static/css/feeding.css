@@ -122,14 +122,20 @@ nav a.active {
 }
 
 .timer-button.reset {
-    background-color: #f44336;
-    padding: 8px 16px;
-    font-size: 14px;
+    background-color: #f0f0f0;
+    color: #666;
+    border: 1px solid #ccc;
+    padding: 4px 8px;
+    font-size: 11px;
     margin-bottom: 0;
+    margin-top: 5px;
+    width: auto;
+    display: inline-block;
+    float: right;
 }
 
 .timer-button.reset:hover {
-    background-color: #da190b;
+    background-color: #e0e0e0;
 }
 
 .form-grid {
