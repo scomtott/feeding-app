@@ -25,11 +25,11 @@
                         <input type="time" id="time" name="time" required>
                     </div>
                     <div class="form-group">
-                        <label for="leftBreastAmount">Left Breast (ml)</label>
+                        <label for="leftBreastAmount">Left Breast (seconds)</label>
                         <input type="number" id="leftBreastAmount" name="leftBreastAmount" min="0" value="0" required>
                     </div>
                     <div class="form-group">
-                        <label for="rightBreastAmount">Right Breast (ml)</label>
+                        <label for="rightBreastAmount">Right Breast (seconds)</label>
                         <input type="number" id="rightBreastAmount" name="rightBreastAmount" min="0" value="0" required>
                     </div>
                     <div class="form-group">
@@ -74,9 +74,9 @@
                             <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
                             <th>Date</th>
                             <th>Time</th>
-                            <th>Left Breast (ml)</th>
-                            <th>Right Breast (ml)</th>
-                            <th>Total Breast (ml)</th>
+                            <th>Left Breast (sec)</th>
+                            <th>Right Breast (sec)</th>
+                            <th>Total Breast (sec)</th>
                             <th>Bottle (ml)</th>
                         </tr>
                     </thead>
@@ -199,7 +199,7 @@
                     labels: dates,
                     datasets: [
                         {
-                            label: 'Breast (ml)',
+                            label: 'Breast (s)',
                             data: breastTotals,
                             borderColor: '#4CAF50',
                             backgroundColor: 'rgba(76, 175, 80, 0.1)',
@@ -452,11 +452,11 @@
                 tooltip = `Bottle at ${entry.displayTime}\nBottle: ${entry.bottleAmount}ml`;
             } else if (mixed) {
                 entryClass = 'timeline-event breastfeeding mixed';
-                label = `${breastTotal}ml+${entry.bottleAmount}ml`;
-                tooltip = `Mixed feeding at ${entry.displayTime}\nBreast: ${breastTotal}ml (L: ${entry.leftBreastAmount}ml, R: ${entry.rightBreastAmount}ml)\nBottle: ${entry.bottleAmount}ml`;
+                label = `${breastTotal}s+${entry.bottleAmount}ml`;
+                tooltip = `Mixed feeding at ${entry.displayTime}\nBreast: ${breastTotal}sec (L: ${entry.leftBreastAmount}sec, R: ${entry.rightBreastAmount}sec)\nBottle: ${entry.bottleAmount}ml`;
             } else {
-                label = `${breastTotal}ml`;
-                tooltip = `Breastfeeding at ${entry.displayTime}\nLeft: ${entry.leftBreastAmount}ml | Right: ${entry.rightBreastAmount}ml`;
+                label = `${breastTotal}s`;
+                tooltip = `Breastfeeding at ${entry.displayTime}\nLeft: ${entry.leftBreastAmount}sec | Right: ${entry.rightBreastAmount}sec`;
             }
 
             return `
