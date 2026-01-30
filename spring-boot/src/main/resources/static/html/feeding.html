@@ -93,80 +93,27 @@
     </div>
 
     <script>
+        // ========== State Variables ==========
         let allEntries = [];
         let overallStartTime = null;
         
         // Timer states indexed by timer ID
         let timerStates = {
-            'left-timer': { elapsed: 0, running: false, startTime: null, interval: null },
-            'right-timer': { elapsed: 0, running: false, startTime: null, interval: null }
+            'left-timer': { elapsed: 0, running: false, startTime: null, interval: null, lastSavedElapsed: -1 },
+            'right-timer': { elapsed: 0, running: false, startTime: null, interval: null, lastSavedElapsed: -1 }
         };
 
         // sessionStorage keys
         const STORAGE_KEY = 'feedingTimers';
+        
+        // Log initial sessionStorage state on page load
+        window.appLogger?.debug('Page load - checking sessionStorage', { 
+            hasStorage: typeof sessionStorage !== 'undefined',
+            storedValue: sessionStorage.getItem(STORAGE_KEY) ? 'EXISTS' : 'MISSING'
+        });
 
-        // Save timer state to sessionStorage
-        function saveTimerState() {
-            const state = {
-                timerStates,
-                overallStartTime: overallStartTime ? overallStartTime.toISOString() : null
-            };
-            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            window.appLogger?.debug('Timer state saved', { 
-                leftElapsed: timerStates['left-timer'].elapsed,
-                rightElapsed: timerStates['right-timer'].elapsed,
-                leftRunning: timerStates['left-timer'].running,
-                rightRunning: timerStates['right-timer'].running
-            });
-        }
-
-        // Load timer state from sessionStorage
-        function loadTimerState() {
-            const saved = sessionStorage.getItem(STORAGE_KEY);
-            if (!saved) {
-                window.appLogger?.debug('No saved timer state found');
-                return false;
-            }
-
-            try {
-                const state = JSON.parse(saved);
-                window.appLogger?.debug('Loading timer state from storage', { state });
-                
-                // Restore overall start time
-                if (state.overallStartTime) {
-                    overallStartTime = new Date(state.overallStartTime);
-                }
-
-                // Restore timer states
-                Object.keys(state.timerStates).forEach(timerId => {
-                    if (timerStates[timerId]) {
-                        const savedTimerState = state.timerStates[timerId];
-                        timerStates[timerId].elapsed = savedTimerState.elapsed || 0;
-                        
-                        // If timer was running, calculate elapsed time since save
-                        if (savedTimerState.running && savedTimerState.startTime) {
-                            const now = Date.now();
-                            timerStates[timerId].startTime = savedTimerState.startTime;
-                            timerStates[timerId].elapsed = Math.floor((now - timerStates[timerId].startTime) / 1000);
-                            timerStates[timerId].running = true;
-                            window.appLogger?.info('Timer state restored and running', { timerId, elapsed: timerStates[timerId].elapsed });
-                        }
-                    }
-                });
-
-                return true;
-            } catch (e) {
-                window.appLogger?.error('Error loading timer state', { error: e.message });
-                return false;
-            }
-        }
-
-        // Clear timer state from sessionStorage
-        function clearTimerState() {
-            sessionStorage.removeItem(STORAGE_KEY);
-            window.appLogger?.debug('Timer state cleared from storage');
-        }
-
+        // ========== Timer Functions ==========
+        
         // Format seconds to HH:MM:SS
         function formatTime(seconds) {
             const hrs = Math.floor(seconds / 3600);
@@ -175,53 +122,120 @@
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         }
 
-        // Set default date and time to now
-        document.addEventListener('DOMContentLoaded', () => {
+        // Save timer state to sessionStorage
+        function saveTimerState() {
+            const state = {
+                timerStates,
+                overallStartTime: overallStartTime ? overallStartTime.toISOString() : null,
+                savedAt: new Date().toISOString()
+            };
+            
             try {
-                window.appLogger?.info('Feeding page loaded');
+                const stateJson = JSON.stringify(state);
+                sessionStorage.setItem(STORAGE_KEY, stateJson);
                 
-                const now = new Date();
-                document.getElementById('date').valueAsDate = now;
-                document.getElementById('time').value = now.toTimeString().substring(0, 5);
+                // Only log if elapsed time has changed for any timer
+                const leftChanged = timerStates['left-timer'].elapsed !== timerStates['left-timer'].lastSavedElapsed;
+                const rightChanged = timerStates['right-timer'].elapsed !== timerStates['right-timer'].lastSavedElapsed;
                 
-                // Load saved timer state
-                if (loadTimerState()) {
-                    window.appLogger?.info('Successfully loaded saved timer state');
-                    // Update display with restored times and resume running timers
-                    Object.keys(timerStates).forEach(timerId => {
-                        const state = timerStates[timerId];
-                        const displayEl = document.getElementById(`${timerId}-display`);
-                        if (displayEl) {
-                            displayEl.textContent = formatTime(state.elapsed);
+                if (leftChanged || rightChanged) {
+                    window.appLogger?.debug('Timer state saved', { 
+                        leftElapsed: timerStates['left-timer'].elapsed,
+                        rightElapsed: timerStates['right-timer'].elapsed,
+                        leftRunning: timerStates['left-timer'].running,
+                        rightRunning: timerStates['right-timer'].running,
+                        stateSize: stateJson.length
+                    });
+                    timerStates['left-timer'].lastSavedElapsed = timerStates['left-timer'].elapsed;
+                    timerStates['right-timer'].lastSavedElapsed = timerStates['right-timer'].elapsed;
+                }
+            } catch (e) {
+                window.appLogger?.error('Failed to save timer state to sessionStorage', { 
+                    error: e.message,
+                    reason: e.name
+                });
+            }
+        }
+
+        // Load timer state from sessionStorage
+        function loadTimerState() {
+            const saved = sessionStorage.getItem(STORAGE_KEY);
+            window.appLogger?.info('Attempting to load timer state', { 
+                found: saved ? 'YES' : 'NO',
+                dataSize: saved ? saved.length : 0
+            });
+            
+            if (!saved) {
+                window.appLogger?.debug('No saved timer state found');
+                return false;
+            }
+
+            try {
+                const state = JSON.parse(saved);
+                const savedAtTime = state.savedAt ? new Date(state.savedAt) : null;
+                const timeSinceSave = savedAtTime ? Date.now() - savedAtTime.getTime() : 'UNKNOWN';
+                
+                window.appLogger?.info('Timer state loaded from storage', { 
+                    savedAt: savedAtTime?.toISOString(),
+                    timeSinceSaveMs: timeSinceSave,
+                    leftElapsed: state.timerStates['left-timer'].elapsed,
+                    rightElapsed: state.timerStates['right-timer'].elapsed,
+                    leftWasRunning: state.timerStates['left-timer'].running,
+                    rightWasRunning: state.timerStates['right-timer'].running
+                });
+                
+                // Restore overall start time
+                if (state.overallStartTime) {
+                    overallStartTime = new Date(state.overallStartTime);
+                }
+
+                // Restore timer states with validation
+                Object.keys(state.timerStates).forEach(timerId => {
+                    if (timerStates[timerId]) {
+                        const savedTimerState = state.timerStates[timerId];
+                        const previousElapsed = timerStates[timerId].elapsed;
+                        timerStates[timerId].elapsed = savedTimerState.elapsed || 0;
+                        
+                        // Log if elapsed changed unexpectedly
+                        if (previousElapsed !== 0 && previousElapsed !== timerStates[timerId].elapsed) {
+                            window.appLogger?.warn('Timer elapsed changed during load', {
+                                timerId,
+                                before: previousElapsed,
+                                after: timerStates[timerId].elapsed
+                            });
                         }
                         
-                        if (state.running) {
-                            const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
-                            if (btn) {
-                                btn.classList.add('paused');
-                                btn.textContent = 'Pause';
-                            }
-                            
-                            // Resume the timer
-                            state.interval = setInterval(() => {
-                                state.elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-                                if (displayEl) {
-                                    displayEl.textContent = formatTime(state.elapsed);
-                                }
-                                saveTimerState();
-                            }, 100);
-                            window.appLogger?.debug('Timer resumed after page load', { timerId });
+                        if (savedTimerState.running && savedTimerState.startTime) {
+                            const now = Date.now();
+                            timerStates[timerId].startTime = savedTimerState.startTime;
+                            timerStates[timerId].elapsed = Math.floor((now - timerStates[timerId].startTime) / 1000);
+                            timerStates[timerId].running = true;
+                            window.appLogger?.info('Timer resumed from saved state', { 
+                                timerId, 
+                                elapsed: timerStates[timerId].elapsed,
+                                wasRunning: true
+                            });
                         }
-                    });
-                } else {
-                    window.appLogger?.debug('No saved timer state to restore');
-                }
-                
-                loadEntries();
-            } catch (error) {
-                window.appLogger?.error('Error during page initialization', { error: error.message });
+                    }
+                });
+
+                return true;
+            } catch (e) {
+                window.appLogger?.error('Error parsing timer state', { 
+                    error: e.message,
+                    errorType: e.name
+                });
+                return false;
             }
-        });
+        }
+
+        // Clear timer state from sessionStorage
+        function clearTimerState() {
+            sessionStorage.removeItem(STORAGE_KEY);
+            window.appLogger?.warn('clearTimerState called - timer state cleared from storage', { 
+                timestamp: new Date().toISOString()
+            });
+        }
 
         function toggleTimer(timerId) {
             try {
@@ -251,11 +265,14 @@
                     state.startTime = Date.now() - (state.elapsed * 1000);
                     
                     state.interval = setInterval(() => {
-                        state.elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-                        if (displayEl) {
-                            displayEl.textContent = formatTime(state.elapsed);
+                        const newElapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                        if (newElapsed !== state.elapsed) {
+                            state.elapsed = newElapsed;
+                            if (displayEl) {
+                                displayEl.textContent = formatTime(state.elapsed);
+                            }
+                            saveTimerState();
                         }
-                        saveTimerState();
                     }, 100);
                     
                     if (btn) {
@@ -291,13 +308,19 @@
                     return;
                 }
                 
-                window.appLogger?.warn('Timer reset', { timerId, previousElapsed: state.elapsed });
+                window.appLogger?.warn('Timer reset', { 
+                    timerId, 
+                    previousElapsed: state.elapsed,
+                    wasRunning: state.running,
+                    timestamp: new Date().toISOString()
+                });
                 
                 clearInterval(state.interval);
                 state.running = false;
                 state.elapsed = 0;
                 state.startTime = null;
                 state.interval = null;
+                state.lastSavedElapsed = -1;
                 
                 const displayEl = document.getElementById(`${timerId}-display`);
                 if (displayEl) {
@@ -353,59 +376,8 @@
             }
         }
 
-        // Handle form submission
-        document.getElementById('entryForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            try {
-                const formData = {
-                    date: document.getElementById('date').value,
-                    time: document.getElementById('time').value,
-                    leftBreastAmount: parseInt(document.getElementById('leftBreastAmount').value),
-                    rightBreastAmount: parseInt(document.getElementById('rightBreastAmount').value),
-                    bottleAmount: parseInt(document.getElementById('bottleAmount').value)
-                };
+        // ========== Entry Management Functions ==========
 
-                window.appLogger?.info('Submitting feeding entry', { formData });
-
-                const response = await fetch('/api/breastfeeding/entries', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(formData)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                window.appLogger?.info('Feeding entry submitted successfully');
-
-                // Show success message
-                const successMsg = document.getElementById('successMessage');
-                successMsg.style.display = 'block';
-                setTimeout(() => {
-                    successMsg.style.display = 'none';
-                }, 3000);
-
-                // Reset form
-                document.getElementById('leftBreastAmount').value = '0';
-                document.getElementById('rightBreastAmount').value = '0';
-                document.getElementById('bottleAmount').value = '0';
-                resetTimer('left-timer');
-                resetTimer('right-timer');
-                clearTimerState();
-
-                // Reload entries table
-                loadEntries();
-            } catch (error) {
-                window.appLogger?.error('Error submitting feeding entry', { error: error.message });
-                alert(`Failed to add entry: ${error.message}`);
-            }
-        });
-
-        // Load entries and display in table
         async function loadEntries() {
             try {
                 window.appLogger?.debug('Loading feeding entries');
@@ -502,6 +474,132 @@
                 alert(`Failed to delete entries: ${error.message}`);
             }
         }
+
+        // ========== Initialization ==========
+        
+        // Monitor page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            window.appLogger?.debug('Page visibility changed', { 
+                hidden: document.hidden,
+                leftElapsed: timerStates['left-timer'].elapsed,
+                rightElapsed: timerStates['right-timer'].elapsed,
+                leftRunning: timerStates['left-timer'].running,
+                rightRunning: timerStates['right-timer'].running
+            });
+        });
+        
+        // Monitor page unload
+        window.addEventListener('beforeunload', () => {
+            window.appLogger?.info('Page unloading', { 
+                leftElapsed: timerStates['left-timer'].elapsed,
+                rightElapsed: timerStates['right-timer'].elapsed,
+                leftRunning: timerStates['left-timer'].running,
+                rightRunning: timerStates['right-timer'].running
+            });
+        });
+        
+        // Set default date and time to now
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                window.appLogger?.info('Feeding page loaded');
+                
+                const now = new Date();
+                document.getElementById('date').valueAsDate = now;
+                document.getElementById('time').value = now.toTimeString().substring(0, 5);
+                
+                // Load saved timer state
+                if (loadTimerState()) {
+                    window.appLogger?.info('Successfully loaded saved timer state');
+                    // Update display with restored times and resume running timers
+                    Object.keys(timerStates).forEach(timerId => {
+                        const state = timerStates[timerId];
+                        const displayEl = document.getElementById(`${timerId}-display`);
+                        if (displayEl) {
+                            displayEl.textContent = formatTime(state.elapsed);
+                        }
+                        
+                        if (state.running) {
+                            const btn = document.querySelector(`button[data-timer-id="${timerId}"][onclick*="toggleTimer"]`);
+                            if (btn) {
+                                btn.classList.add('paused');
+                                btn.textContent = 'Pause';
+                            }
+                            
+                            // Resume the timer
+                            state.interval = setInterval(() => {
+                                const newElapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                                if (newElapsed !== state.elapsed) {
+                                    state.elapsed = newElapsed;
+                                    if (displayEl) {
+                                        displayEl.textContent = formatTime(state.elapsed);
+                                    }
+                                    saveTimerState();
+                                }
+                            }, 100);
+                            window.appLogger?.debug('Timer resumed after page load', { timerId });
+                        }
+                    });
+                } else {
+                    window.appLogger?.debug('No saved timer state to restore');
+                }
+                
+                loadEntries();
+            } catch (error) {
+                window.appLogger?.error('Error during page initialization', { error: error.message });
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('entryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                const formData = {
+                    date: document.getElementById('date').value,
+                    time: document.getElementById('time').value,
+                    leftBreastAmount: parseInt(document.getElementById('leftBreastAmount').value),
+                    rightBreastAmount: parseInt(document.getElementById('rightBreastAmount').value),
+                    bottleAmount: parseInt(document.getElementById('bottleAmount').value)
+                };
+
+                window.appLogger?.info('Submitting feeding entry', { formData });
+
+                const response = await fetch('/api/breastfeeding/entries', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                window.appLogger?.info('Feeding entry submitted successfully');
+
+                // Show success message
+                const successMsg = document.getElementById('successMessage');
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.display = 'none';
+                }, 3000);
+
+                // Reset form
+                document.getElementById('leftBreastAmount').value = '0';
+                document.getElementById('rightBreastAmount').value = '0';
+                document.getElementById('bottleAmount').value = '0';
+                resetTimer('left-timer');
+                resetTimer('right-timer');
+                clearTimerState();
+
+                // Reload entries table
+                loadEntries();
+            } catch (error) {
+                window.appLogger?.error('Error submitting feeding entry', { error: error.message });
+                alert(`Failed to add entry: ${error.message}`);
+            }
+        });
     </script>
     <script src="../js/nav.js"></script>
 </body>
