@@ -39,13 +39,22 @@
                 </div>
                 <div class="controls">
                     <button type="submit">Add Entry</button>
-                    <button type="button" class="btn-secondary" onclick="loadDailyTotals()">Reload Graph</button>
+                    <button type="button" class="btn-secondary" onclick="loadDailyTotals(); displayDiscrepancyChart()">Reload Graph</button>
                 </div>
                 <div id="successMessage" class="success-message">Entry added successfully!</div>
             </form>
         </div>
 
-        <div id="content">
+        <h2>Pumping Graph</h2>
+        <div id="pumpingChart">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <h2>Pumping vs Bottle Consumption</h2>
+        <div id="discrepancyChart">
             <div class="loading">
                 <div class="spinner"></div>
                 <p>Loading...</p>
@@ -80,7 +89,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
-        let chart = null;
+        let pumpingChart = null;
+        let discrepancyChart = null;
         let allEntries = [];
 
         // Set default date and time to now
@@ -93,6 +103,7 @@
                 document.getElementById('time').value = now.toTimeString().substring(0, 5);
                 
                 loadDailyTotals();
+                displayDiscrepancyChart();
                 loadEntries();
             } catch (error) {
                 window.appLogger?.error('Error during pumping page initialization', { error: error.message });
@@ -162,15 +173,116 @@
                 displayPumpingChart(data);
             } catch (error) {
                 window.appLogger?.error('Error loading daily totals', { error: error.message });
-                displayError(`Failed to load data: ${error.message}`);
+                displayError(`Failed to load data: ${error.message}`, 'pumpingChart');
             }
         }
 
+        async function displayDiscrepancyChart(totals) {
+            let breastFeedingTotals;
+            try {
+                const response = await fetch('/api/breastfeeding/dailyTotals');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                breastFeedingTotals = await response.json();
+            } catch (error) {
+                displayError(`Failed to load data: ${error.message}`, 'discrepancyChart');
+            }
+
+            let pumpingTotals;
+            try {
+                const response = await fetch('/api/pumping/dailyTotals');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                pumpingTotals = await response.json();
+            } catch (error) {
+                displayError(`Failed to load data: ${error.message}`, 'discrepancyChart');
+            }
+
+            if (!breastFeedingTotals) {
+                displayError(`Failed to load breast feeding totals.`, 'discrepancyChart');
+                return;
+            }
+
+            if (!pumpingTotals) {
+                displayError(`Failed to load pumping totals.`, 'discrepancyChart');
+                return;
+            }
+
+
+            let discrepancyData = new Array(pumpingTotals.length);
+            let cumulativeDiscrepancy = 0;
+            let j = 0;
+            for (let i = 0; i < breastFeedingTotals.length; i++) {
+                if (pumpingTotals[j].date !== breastFeedingTotals[i].date) {
+                    continue;
+                }
+
+                const discrepancy = pumpingTotals[j].amount - breastFeedingTotals[i].bottleTotal;
+                cumulativeDiscrepancy = cumulativeDiscrepancy + discrepancy;
+
+                discrepancyData[j] = {
+                    date: breastFeedingTotals[i].date,
+                    cumulativeDiscrepancy: cumulativeDiscrepancy,
+                    discrepancy: discrepancy
+                };
+
+                j++;
+            }
+
+            discrepancyChart = displayChart({
+                containerId: 'discrepancyChart',
+                data: discrepancyData,
+                chartInstance: discrepancyChart,
+                emptyMessage: 'No discrepancy data available',
+                prepareLabels: (data) => data.map(t => new Date(t.date).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                })),
+                datasets: [
+                    {
+                        label: 'Pumping vs Bottle Consumption (ml)',
+                        prepareData: (data) => data.map(t => t.discrepancy),
+                        borderColor: '#F44336',
+                        tension: 0,
+                        backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Cumulative Discrepancy (ml)',
+                        prepareData: (data) => data.map(t => t.cumulativeDiscrepancy),
+                        borderColor: '#3F51B5',
+                        tension: 0,
+                        backgroundColor: 'rgba(63, 81, 181, 0.1)',
+                        yAxisID: 'y'
+                    }
+                ],
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Discrepancy (ml)'
+                        },
+                        ticks: {
+                            font: {
+                                size: window.innerWidth <= 480 ? 10 : 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         function displayPumpingChart(totals) {
-            chart = displayChart({
-                containerId: 'content',
+            pumpingChart = displayChart({
+                containerId: 'pumpingChart',
                 data: totals,
-                chartInstance: chart,
+                chartInstance: pumpingChart,
                 emptyMessage: 'No pumping data available',
                 prepareLabels: (data) => data.map(t => new Date(t.date).toLocaleDateString('en-US', { 
                     month: 'short', 
@@ -230,9 +342,9 @@
             });
         }
 
-        function displayError(message) {
+        function displayError(message, elementId) {
             window.appLogger?.error('Displaying error message', { message });
-            document.getElementById('content').innerHTML = `<div class="error">${message}</div>`;
+            document.getElementById(elementId).innerHTML = `<div class="error">${message}</div>`;
         }
 
         // Load entries and display in table
@@ -325,6 +437,7 @@
                 // Reload data
                 loadEntries();
                 loadDailyTotals();
+                displayDiscrepancyChart();
                 document.getElementById('selectAllCheckbox').checked = false;
             } catch (error) {
                 window.appLogger?.error('Error deleting pumping entries', { error: error.message, ids: selected });

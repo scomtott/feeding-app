@@ -48,10 +48,10 @@ function displayChart(config) {
         }
 
         // Create canvas
-        const canvasHtml = '<canvas id="chart"></canvas>';
+        const canvasHtml = `<canvas id="${containerId}-chart"></canvas>`;
         document.getElementById(containerId).innerHTML = canvasHtml;
 
-        const ctx = document.getElementById('chart').getContext('2d');
+        const ctx = document.getElementById(`${containerId}-chart`).getContext('2d');
 
         // Destroy existing chart if provided
         if (chartInstance) {
