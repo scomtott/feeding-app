@@ -46,6 +46,7 @@ public class PumpingController {
 
     @GetMapping("/dailyTotals")
     public List<DailyPumpingTotal> dailyTotals(@RequestParam(required = false) LocalDate startDate, @RequestParam(required = false) LocalDate endDate) {
+        log.info("Received request for daily pumping totals from {} to {}", startDate, endDate);
         return pumpingService.calculateDailyTotals(startDate, endDate);
     }
 

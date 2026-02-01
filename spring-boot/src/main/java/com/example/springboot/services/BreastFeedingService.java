@@ -24,6 +24,9 @@ public class BreastFeedingService {
 
 private final BreastFeedingEntryRepository repository;
 
+private final LocalDate MIN_DATE = LocalDate.of(2020, 1, 1);
+private final LocalDate MAX_DATE = LocalDate.of(2100, 1, 1);
+
     public List<BreastFeedingEntry> getAllEntries(Sort.Direction direction) {
         return repository.findAll(Sort.by(direction, "date", "time"));
     }
@@ -47,13 +50,15 @@ private final BreastFeedingEntryRepository repository;
     }
 
     public List<DailyFeedingTotal> calculateDailyTotals(LocalDate startDate, LocalDate endDate) {
+        log.info("Calculate daily feeding totals range from {} to {}", startDate, endDate);
         if (startDate == null) {
-            startDate = LocalDate.MIN;
+            startDate = MIN_DATE;
         }
         if (endDate == null) {
-            endDate = LocalDate.MAX;
+            endDate = MAX_DATE;
         }
-        
+        log.info("Using date range from {} to {}", startDate, endDate);
+
         List<BreastFeedingEntry> orderedEntries = repository.findByDateBetween(startDate, endDate);
         List<DailyFeedingTotal> totals = new ArrayList<>();
 

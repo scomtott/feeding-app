@@ -23,6 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 public class PumpingService {
     private final PumpingEntryRepository repository;
 
+    private final LocalDate MIN_DATE = LocalDate.of(2020, 1, 1);
+private final LocalDate MAX_DATE = LocalDate.of(2100, 1, 1);
+
     public List<PumpingEntry> getAllEntries(Sort.Direction direction) {
         return repository.findAll(Sort.by(direction, "date", "time"));
     }
@@ -46,12 +49,15 @@ public class PumpingService {
     }
 
     public List<DailyPumpingTotal> calculateDailyTotals(LocalDate startDate, LocalDate endDate) {
+        log.info("Calculating daily pumping totals from {} to {}", startDate, endDate);
         if (startDate == null) {
-            startDate = LocalDate.MIN;
+            startDate = MIN_DATE;
         }
         if (endDate == null) {
-            endDate = LocalDate.MAX;
+            endDate = MAX_DATE;
         }
+
+        log.info("Using date range from {} to {}", startDate, endDate);
         
         List<PumpingEntry> orderedEntries = repository.findByDateBetween(startDate, endDate);
         List<DailyPumpingTotal> totals = new ArrayList<>();
