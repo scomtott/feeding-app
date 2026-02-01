@@ -103,13 +103,13 @@
             'right-timer': { elapsed: 0, running: false, startTime: null, interval: null, lastSavedElapsed: -1 }
         };
 
-        // sessionStorage keys
+        // localStorage keys
         const STORAGE_KEY = 'feedingTimers';
         
-        // Log initial sessionStorage state on page load
-        window.appLogger?.debug('Page load - checking sessionStorage', { 
-            hasStorage: typeof sessionStorage !== 'undefined',
-            storedValue: sessionStorage.getItem(STORAGE_KEY) ? 'EXISTS' : 'MISSING'
+        // Log initial localStorage state on page load
+        window.appLogger?.debug('Page load - checking localStorage', { 
+            hasStorage: typeof localStorage !== 'undefined',
+            storedValue: localStorage.getItem(STORAGE_KEY) ? 'EXISTS' : 'MISSING'
         });
 
         // ========== Timer Functions ==========
@@ -122,7 +122,7 @@
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         }
 
-        // Save timer state to sessionStorage
+        // Save timer state to localStorage
         function saveTimerState() {
             const state = {
                 timerStates,
@@ -132,7 +132,7 @@
             
             try {
                 const stateJson = JSON.stringify(state);
-                sessionStorage.setItem(STORAGE_KEY, stateJson);
+                localStorage.setItem(STORAGE_KEY, stateJson);
                 
                 // Only log if elapsed time has changed for any timer
                 const leftChanged = timerStates['left-timer'].elapsed !== timerStates['left-timer'].lastSavedElapsed;
@@ -150,16 +150,16 @@
                     timerStates['right-timer'].lastSavedElapsed = timerStates['right-timer'].elapsed;
                 }
             } catch (e) {
-                window.appLogger?.error('Failed to save timer state to sessionStorage', { 
+                window.appLogger?.error('Failed to save timer state to localStorage', { 
                     error: e.message,
                     reason: e.name
                 });
             }
         }
 
-        // Load timer state from sessionStorage
+        // Load timer state from localStorage
         function loadTimerState() {
-            const saved = sessionStorage.getItem(STORAGE_KEY);
+            const saved = localStorage.getItem(STORAGE_KEY);
             window.appLogger?.info('Attempting to load timer state', { 
                 found: saved ? 'YES' : 'NO',
                 dataSize: saved ? saved.length : 0
@@ -229,9 +229,9 @@
             }
         }
 
-        // Clear timer state from sessionStorage
+        // Clear timer state from localStorage
         function clearTimerState() {
-            sessionStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(STORAGE_KEY);
             window.appLogger?.warn('clearTimerState called - timer state cleared from storage', { 
                 timestamp: new Date().toISOString()
             });
