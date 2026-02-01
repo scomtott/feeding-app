@@ -45,8 +45,8 @@ public class PumpingController {
     }
 
     @GetMapping("/dailyTotals")
-    public List<DailyPumpingTotal> dailyTotals() {
-        return pumpingService.calculateDailyTotals();
+    public List<DailyPumpingTotal> dailyTotals(@RequestParam(required = false) LocalDate startDate, @RequestParam(required = false) LocalDate endDate) {
+        return pumpingService.calculateDailyTotals(startDate, endDate);
     }
 
     @DeleteMapping("/entries/{id}")

@@ -6,6 +6,7 @@ import com.example.springboot.persistence.LoggingRepository;
 import java.time.LocalDate;
 import java.util.List;
 
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.data.domain.Sort;
@@ -45,9 +46,9 @@ public class LoggingController {
     }
 
     @DeleteMapping()
+    @Transactional
     public void deleteLogsByDate(@RequestParam LocalDate date) {
-        loggingRepository.findAll().stream()
-            .filter(entry -> entry.getDate().isBefore(date))
-            .forEach(entry -> loggingRepository.deleteById(entry.getId()));
+        log.info("Deleting logs after date: {}", date);
+        loggingRepository.deleteByDateAfter(date);
     }
 }

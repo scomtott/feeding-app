@@ -1,7 +1,9 @@
 package com.example.springboot.services;
 
 import java.util.List;
+
 import org.springframework.data.domain.Sort;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 
@@ -10,6 +12,7 @@ import com.example.springboot.persistence.PumpingEntryRepository;
 import com.example.springboot.models.DailyPumpingTotal;
 
 import org.springframework.stereotype.Service;
+
 import lombok.RequiredArgsConstructor;
 
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +42,18 @@ public class PumpingService {
     }
 
     public List<DailyPumpingTotal> calculateDailyTotals() {
-        List<PumpingEntry> orderedEntries = repository.findAll(Sort.by(Sort.Direction.ASC, "date", "time"));
+        return calculateDailyTotals(null, null);
+    }
+
+    public List<DailyPumpingTotal> calculateDailyTotals(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null) {
+            startDate = LocalDate.MIN;
+        }
+        if (endDate == null) {
+            endDate = LocalDate.MAX;
+        }
+        
+        List<PumpingEntry> orderedEntries = repository.findByDateBetween(startDate, endDate);
         List<DailyPumpingTotal> totals = new ArrayList<>();
 
         if (orderedEntries.isEmpty()) {

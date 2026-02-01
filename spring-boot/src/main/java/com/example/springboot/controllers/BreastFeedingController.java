@@ -45,8 +45,8 @@ public class BreastFeedingController {
     }
 
     @GetMapping("/dailyTotals")
-    public List<DailyFeedingTotal> dailyTotals() {
-        return breastFeedingService.calculateDailyTotals();
+    public List<DailyFeedingTotal> dailyTotals(@RequestParam(required = false) LocalDate startDate, @RequestParam(required = false) LocalDate endDate) {
+        return breastFeedingService.calculateDailyTotals(startDate, endDate);
     }
 
     @DeleteMapping("/entries/{id}")

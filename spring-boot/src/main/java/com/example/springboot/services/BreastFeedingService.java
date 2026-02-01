@@ -43,7 +43,18 @@ private final BreastFeedingEntryRepository repository;
     }
 
     public List<DailyFeedingTotal> calculateDailyTotals() {
-        List<BreastFeedingEntry> orderedEntries = repository.findAll(Sort.by(Sort.Direction.ASC, "date", "time"));
+        return calculateDailyTotals(null, null);
+    }
+
+    public List<DailyFeedingTotal> calculateDailyTotals(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null) {
+            startDate = LocalDate.MIN;
+        }
+        if (endDate == null) {
+            endDate = LocalDate.MAX;
+        }
+        
+        List<BreastFeedingEntry> orderedEntries = repository.findByDateBetween(startDate, endDate);
         List<DailyFeedingTotal> totals = new ArrayList<>();
 
         if (orderedEntries.isEmpty()) {
