@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <link rel="stylesheet" href="../css/dashboard.css">
+    <script src="../js/chart-utils.js"></script>
 </head>
 <body>
     <div class="container">
@@ -208,103 +209,36 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                displayChart(data);
+                displayDashboardChart(data);
             } catch (error) {
                 displayError(`Failed to load data: ${error.message}`);
             }
         }
 
-        function displayChart(totals) {
-            if (totals.length === 0) {
-                document.getElementById('content').innerHTML = '<p style="text-align: center; color: #666;">No data available</p>';
-                return;
-            }
-
-            const dates = totals.map(t => new Date(t.date).toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
-            }));
-            const breastTotals = totals.map(t => t.breastTotal);
-            const bottleTotals = totals.map(t => t.bottleTotal);
-
-            const canvasHtml = '<canvas id="totalsChart"></canvas>';
-            document.getElementById('content').innerHTML = canvasHtml;
-
-            const ctx = document.getElementById('totalsChart').getContext('2d');
-            
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [
-                        {
-                            label: 'Breast (min)',
-                            data: breastTotals,
-                            borderColor: '#4CAF50',
-                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#4CAF50',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2
-                        },
-                        {
-                            label: 'Bottle (ml)',
-                            data: bottleTotals,
-                            borderColor: '#2196F3',
-                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#2196F3',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 11 : 14
-                                },
-                                padding: window.innerWidth <= 480 ? 10 : 20,
-                                usePointStyle: true
-                            }
-                        }
+        function displayDashboardChart(totals) {
+            chart = displayChart({
+                containerId: 'content',
+                data: totals,
+                chartInstance: chart,
+                emptyMessage: 'No data available',
+                prepareLabels: (data) => data.map(t => new Date(t.date).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                })),
+                datasets: [
+                    {
+                        label: 'Breast (min)',
+                        prepareData: (data) => data.map(t => t.breastTotal),
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)'
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 10 : 12
-                                }
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                font: {
-                                    size: window.innerWidth <= 480 ? 9 : 12
-                                },
-                                maxRotation: window.innerWidth <= 480 ? 45 : 0,
-                                minRotation: window.innerWidth <= 480 ? 45 : 0
-                            }
-                        }
+                    {
+                        label: 'Bottle (ml)',
+                        prepareData: (data) => data.map(t => t.bottleTotal),
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)'
                     }
-                }
+                ]
             });
         }
 

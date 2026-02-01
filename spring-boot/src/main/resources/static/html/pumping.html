@@ -6,6 +6,7 @@
     <title>Pumping Tracker</title>
     <link rel="stylesheet" href="../css/pumping.css">
     <script src="../js/logger.js"></script>
+    <script src="../js/chart-utils.js"></script>
 </head>
 <body>
     <div class="container">
@@ -158,146 +159,75 @@
                 const data = await response.json();
                 
                 window.appLogger?.debug('Daily totals loaded', { count: data.length });
-                displayChart(data);
+                displayPumpingChart(data);
             } catch (error) {
                 window.appLogger?.error('Error loading daily totals', { error: error.message });
                 displayError(`Failed to load data: ${error.message}`);
             }
         }
 
-        function displayChart(totals) {
-            try {
-                if (totals.length === 0) {
-                    window.appLogger?.info('No pumping data available');
-                    document.getElementById('content').innerHTML = '<p style="text-align: center; color: #666;">No data available</p>';
-                    return;
-                }
-
-                const dates = totals.map(t => new Date(t.date).toLocaleDateString('en-US', { 
+        function displayPumpingChart(totals) {
+            chart = displayChart({
+                containerId: 'content',
+                data: totals,
+                chartInstance: chart,
+                emptyMessage: 'No pumping data available',
+                prepareLabels: (data) => data.map(t => new Date(t.date).toLocaleDateString('en-US', { 
                     month: 'short', 
                     day: 'numeric' 
-                }));
-                const amounts = totals.map(t => t.amount);
-                const counts = totals.map(t => t.count);
-
-                window.appLogger?.debug('Displaying chart', { dataPoints: dates.length, minAmount: Math.min(...amounts), maxAmount: Math.max(...amounts) });
-
-                const canvasHtml = '<canvas id="totalsChart"></canvas>';
-                document.getElementById('content').innerHTML = canvasHtml;
-
-                const ctx = document.getElementById('totalsChart').getContext('2d');
-                
-                if (chart) {
-                    window.appLogger?.debug('Destroying existing chart instance');
-                    chart.destroy();
-                }
-
-                chart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: dates,
-                        datasets: [
-                            {
-                                label: 'Amount (ml)',
-                                data: amounts,
-                                borderColor: '#9C27B0',
-                                backgroundColor: 'rgba(156, 39, 176, 0.1)',
-                                tension: 0.4,
-                                fill: true,
-                                borderWidth: 2,
-                                pointRadius: 4,
-                                pointBackgroundColor: '#9C27B0',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Sessions',
-                                data: counts,
-                                borderColor: '#FF9800',
-                                backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                                tension: 0.4,
-                                fill: true,
-                                borderWidth: 2,
-                                pointRadius: 4,
-                                pointBackgroundColor: '#FF9800',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                yAxisID: 'y1'
-                            }
-                        ]
+                })),
+                datasets: [
+                    {
+                        label: 'Amount (ml)',
+                        prepareData: (data) => data.map(t => t.amount),
+                        borderColor: '#9C27B0',
+                        backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                        yAxisID: 'y'
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        interaction: {
-                            mode: 'index',
-                            intersect: false
+                    {
+                        label: 'Sessions',
+                        prepareData: (data) => data.map(t => t.count),
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        yAxisID: 'y1'
+                    }
+                ],
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Amount (ml)'
                         },
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                labels: {
-                                    font: {
-                                        size: window.innerWidth <= 480 ? 11 : 14
-                                    },
-                                    padding: window.innerWidth <= 480 ? 10 : 20,
-                                    usePointStyle: true
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Amount (ml)'
-                                },
-                                ticks: {
-                                    font: {
-                                        size: window.innerWidth <= 480 ? 10 : 12
-                                    }
-                                }
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Sessions'
-                                },
-                                ticks: {
-                                    font: {
-                                        size: window.innerWidth <= 480 ? 10 : 12
-                                    }
-                                },
-                                grid: {
-                                    drawOnChartArea: false
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    font: {
-                                        size: window.innerWidth <= 480 ? 9 : 12
-                                    },
-                                    maxRotation: window.innerWidth <= 480 ? 45 : 0,
-                                    minRotation: window.innerWidth <= 480 ? 45 : 0
-                                }
+                        ticks: {
+                            font: {
+                                size: window.innerWidth <= 480 ? 10 : 12
                             }
                         }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Sessions'
+                        },
+                        ticks: {
+                            font: {
+                                size: window.innerWidth <= 480 ? 10 : 12
+                            }
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
                     }
-                });
-                
-                window.appLogger?.info('Chart rendered successfully');
-            } catch (error) {
-                window.appLogger?.error('Error displaying chart', { error: error.message });
-            }
+                }
+            });
         }
 
         function displayError(message) {
