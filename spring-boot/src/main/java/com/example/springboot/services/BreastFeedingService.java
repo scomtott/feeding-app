@@ -16,7 +16,6 @@ import com.example.springboot.models.BreastFeedingEntry;
 import com.example.springboot.persistence.BreastFeedingEntryRepository;
 import com.example.springboot.models.DailyFeedingTotal;
 
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
