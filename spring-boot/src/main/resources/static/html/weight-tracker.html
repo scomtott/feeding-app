@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weight Tracker</title>
     <link rel="stylesheet" href="../css/weight-tracker.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -12,11 +13,307 @@
         
         <h1>Weight Tracker</h1>
 
-        <div class="placeholder">
-            <h2>📊</h2>
-            <p>Weight tracking functionality coming soon...</p>
+        <div class="form-section">
+            <h2>Add Weight Entry</h2>
+            <form id="weight-form">
+                <div class="form-group">
+                    <label for="entry-date">Date:</label>
+                    <input type="date" id="entry-date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="entry-weight">Weight (grams):</label>
+                    <input type="number" id="entry-weight" min="500" max="15000" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="entry-location">Measurement Location:</label>
+                    <select id="entry-location" required>
+                        <option value="">-- Select Location --</option>
+                        <option value="HOME">Home</option>
+                        <option value="WEIGHING_CLINIC">Weighing Clinic</option>
+                        <option value="HOSPITAL">Hospital</option>
+                        <option value="GP">GP</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-submit">Add Entry</button>
+                <span id="form-message" class="form-message"></span>
+            </form>
+        </div>
+
+        <div class="chart-section">
+            <h2>Weight Progress & Centiles</h2>
+            <div id="content" class="chart-container"></div>
+        </div>
+
+        <div class="entries-section">
+            <h2>Recent Entries</h2>
+            <div class="entries-controls">
+                <label>
+                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"> Select All
+                </label>
+                <span id="selectedCount" class="selected-count"></span>
+                <button type="button" class="btn-delete" id="deleteButton" onclick="deleteSelectedEntries()" disabled>Delete Selected</button>
+            </div>
+            <table id="entries-table" class="entries-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;"></th>
+                        <th>Date</th>
+                        <th>Weight (g)</th>
+                        <th>Location</th>
+                        <th>Centile (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="entries-tbody">
+                </tbody>
+            </table>
         </div>
     </div>
+
+    <script src="../js/chart-utils.js"></script>
+    <script src="../js/logger.js"></script>
     <script src="../js/nav.js"></script>
+    <script>
+        let chart = null;
+        const locationMap = {
+            'HOME': 'Home',
+            'WEIGHING_CLINIC': 'Weighing Clinic',
+            'HOSPITAL': 'Hospital',
+            'GP': 'GP'
+        };
+
+        // Set today's date as default
+        document.getElementById('entry-date').valueAsDate = new Date();
+
+        // Handle form submission
+        document.getElementById('weight-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const date = document.getElementById('entry-date').value;
+            const weight = parseInt(document.getElementById('entry-weight').value);
+            const location = document.getElementById('entry-location').value;
+            const messageSpan = document.getElementById('form-message');
+
+            try {
+                appLogger.info('Submitting weight entry', { date, weight, location });
+                
+                const response = await fetch('/api/weight/entries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, weightInGrams: weight, location })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                appLogger.info('Weight entry saved successfully');
+                messageSpan.textContent = 'Entry added successfully!';
+                messageSpan.style.color = '#4CAF50';
+                
+                document.getElementById('weight-form').reset();
+                document.getElementById('entry-date').valueAsDate = new Date();
+                
+                setTimeout(() => {
+                    messageSpan.textContent = '';
+                }, 3000);
+
+                // Reload data
+                await loadWeightData();
+            } catch (error) {
+                appLogger.error('Failed to save weight entry', { error: error.message });
+                messageSpan.textContent = 'Error: ' + error.message;
+                messageSpan.style.color = '#f44336';
+            }
+        });
+
+        async function loadWeightData() {
+            try {
+                appLogger.info('Loading weight data');
+                
+                const [entriesResponse, centilesResponse] = await Promise.all([
+                    fetch('/api/weight/entries?direction=ASC'),
+                    fetch('/api/weight/centiles')
+                ]);
+
+                if (!entriesResponse.ok || !centilesResponse.ok) {
+                    throw new Error('Failed to fetch data');
+                }
+
+                const entries = await entriesResponse.json();
+                const centiles = await centilesResponse.json();
+
+                appLogger.info('Loaded data', { entryCount: entries.length, centileCount: centiles.length });
+
+                updateEntriesTable(entries, centiles);
+                displayWeightChart(entries, centiles);
+            } catch (error) {
+                appLogger.error('Failed to load weight data', { error: error.message });
+            }
+        }
+
+        function updateEntriesTable(entries, centiles) {
+            const tbody = document.getElementById('entries-tbody');
+            tbody.innerHTML = '';
+
+            const centileMap = new Map(centiles.map(c => [`${c.date}:${c.weightInGrams}`, c.centileValue]));
+
+            entries.forEach(entry => {
+                const row = document.createElement('tr');
+                const centileKey = `${entry.date}:${entry.weightInGrams}`;
+                const centile = centileMap.get(centileKey);
+                const centileDisplay = centile !== undefined ? centile.toFixed(1) : 'N/A';
+
+                row.innerHTML = `
+                    <td><input type="checkbox" class="entry-checkbox" value="${entry.id}" onchange="updateDeleteButton()"></td>
+                    <td>${entry.date}</td>
+                    <td>${entry.weightInGrams}</td>
+                    <td>${locationMap[entry.location] || entry.location}</td>
+                    <td>${centileDisplay}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            updateDeleteButton();
+        }
+
+        function updateDeleteButton() {
+            const selected = document.querySelectorAll('.entry-checkbox:checked').length;
+            const deleteBtn = document.getElementById('deleteButton');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            deleteBtn.disabled = selected === 0;
+            selectedCount.textContent = selected > 0 ? `${selected} selected` : '';
+            
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const allCheckboxes = document.querySelectorAll('.entry-checkbox');
+            selectAllCheckbox.checked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
+        }
+
+        function toggleSelectAll() {
+            const isChecked = document.getElementById('selectAllCheckbox').checked;
+            document.querySelectorAll('.entry-checkbox').forEach(cb => {
+                cb.checked = isChecked;
+            });
+            updateDeleteButton();
+        }
+
+        async function deleteSelectedEntries() {
+            const selected = Array.from(document.querySelectorAll('.entry-checkbox:checked')).map(cb => parseInt(cb.value));
+            
+            if (selected.length === 0) {
+                appLogger.warn('No entries selected for deletion');
+                return;
+            }
+
+            if (!confirm(`Delete ${selected.length} entry(ies)?`)) {
+                appLogger.debug('Delete cancelled by user', { count: selected.length });
+                return;
+            }
+
+            try {
+                appLogger.warn('Deleting weight entries', { ids: selected, count: selected.length });
+                
+                const response = await fetch('/api/weight/entries/batch', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(selected)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                appLogger.info('Weight entries deleted successfully', { count: selected.length });
+
+                // Reload data
+                await loadWeightData();
+                document.getElementById('selectAllCheckbox').checked = false;
+            } catch (error) {
+                appLogger.error('Error deleting weight entries', { error: error.message, ids: selected });
+                alert(`Failed to delete entries: ${error.message}`);
+            }
+        }
+
+        function displayWeightChart(entries, centiles) {
+            if (entries.length === 0) {
+                document.getElementById('content').innerHTML = '<p class="no-data">No weight entries recorded yet.</p>';
+                return;
+            }
+
+            const centileMap = new Map(centiles.map(c => [`${c.date}:${c.weightInGrams}`, c.centileValue]));
+
+            // Calculate dynamic weight range with 10% padding
+            const weights = entries.map(e => e.weightInGrams);
+            const minWeight = Math.min(...weights);
+            const maxWeight = Math.max(...weights);
+            const weightPadding = (maxWeight - minWeight) * 0.1;
+            const yMin = Math.max(500, Math.floor((minWeight - weightPadding) / 100) * 100);
+            const yMax = Math.ceil((maxWeight + weightPadding) / 100) * 100;
+
+            // Calculate dynamic centile range with padding
+            const centileValues = centiles.map(c => c.centileValue).filter(v => v !== null);
+            const minCentile = Math.min(...centileValues);
+            const maxCentile = Math.max(...centileValues);
+            const centilePadding = (maxCentile - minCentile) * 0.1;
+            const y1Min = Math.max(0, Math.floor(minCentile - centilePadding));
+            const y1Max = Math.min(100, Math.ceil(maxCentile + centilePadding));
+
+            chart = displayChart({
+                containerId: 'content',
+                data: entries,
+                chartInstance: chart,
+                prepareLabels: (data) => data.map(entry => entry.date),
+                datasets: [
+                    {
+                        label: 'Weight (g)',
+                        prepareData: (data) => data.map(entry => entry.weightInGrams),
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Centile (%)',
+                        prepareData: (data) => data.map(entry => {
+                            const key = `${entry.date}:${entry.weightInGrams}`;
+                            return centileMap.get(key) || null;
+                        }).filter(v => v !== null),
+                        borderColor: '#FF9800',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y1',
+                        pointRadius: 5,
+                        pointBackgroundColor: '#FF9800'
+                    }
+                ],
+                scales: {
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        title: { display: true, text: 'Weight (grams)' },
+                        min: yMin,
+                        max: yMax
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        title: { display: true, text: 'Centile (%)' },
+                        min: y1Min,
+                        max: y1Max,
+                        grid: { drawOnChartArea: false }
+                    }
+                },
+                emptyStateMessage: 'No weight data available'
+            });
+        }
+
+        // Load data on page load
+        loadWeightData();
+    </script>
 </body>
 </html>

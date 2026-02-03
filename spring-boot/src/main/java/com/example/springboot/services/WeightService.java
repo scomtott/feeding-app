@@ -52,4 +52,9 @@ public class WeightService {
         }
         return centiles;
     }
+
+    public void deleteEntry(Long id) {
+        log.info("Deleting weight entry with id: {}", id);
+        repository.deleteById(id);
+    }
 }

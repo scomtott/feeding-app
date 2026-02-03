@@ -47,4 +47,9 @@ public class WeightController {
     public List<WeightEntry> batchSave(@RequestBody List<WeightEntry> entries) {
         return weightService.saveAllEntries(entries);
     }
+
+    @DeleteMapping("/entries/{id}")
+    public void deleteEntry(@PathVariable Long id) {
+        weightService.deleteEntry(id);
+    }
 }
