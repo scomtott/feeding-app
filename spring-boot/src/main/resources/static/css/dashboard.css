@@ -524,6 +524,28 @@ nav a.active {
     overflow-x: auto;
 }
 
+.timeline-period {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.timeline-period:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.timeline-period-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #2196F3;
+    margin: 0 0 15px 0;
+    padding: 8px 12px;
+    background: linear-gradient(to right, rgba(33, 150, 243, 0.1), transparent);
+    border-left: 4px solid #2196F3;
+    border-radius: 2px;
+}
+
 .timeline-day {
     position: relative;
     min-height: 200px;
@@ -532,23 +554,38 @@ nav a.active {
 .timeline-hours {
     display: flex;
     position: relative;
-    height: 25px;
+    height: 30px;
     margin-bottom: 10px;
-    border-bottom: 2px solid #e0e0e0;
+    border-bottom: 3px solid #2196F3;
 }
 
 .timeline-hour {
     flex: 1;
-    font-size: 11px;
-    color: #888;
-    text-align: center;
-    padding: 5px 0;
-    border-right: 1px solid #f0f0f0;
-    font-weight: bold;
+    position: relative;
+    text-align: left;
+    padding: 0;
+    border-right: 2px solid #2196F3;
 }
 
 .timeline-hour:last-child {
-    border-right: none;
+    border-right: 2px solid #2196F3;
+}
+
+.hour-marker {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: bold;
+    color: #2196F3;
+    background-color: white;
+    padding: 3px 6px;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 5;
 }
 
 .timeline-section-label {
@@ -564,7 +601,13 @@ nav a.active {
 .timeline-track {
     position: relative;
     height: 60px;
-    background: linear-gradient(to right, transparent 4.166%, #f9f9f9 4.166%, #f9f9f9 8.333%, transparent 8.333%, transparent 12.5%, #f9f9f9 12.5%, #f9f9f9 16.666%, transparent 16.666%);
+    background: linear-gradient(to right, 
+        transparent 0%, transparent 8.333%, #f9f9f9 8.333%, #f9f9f9 16.666%, 
+        transparent 16.666%, transparent 25%, #f9f9f9 25%, #f9f9f9 33.333%,
+        transparent 33.333%, transparent 41.666%, #f9f9f9 41.666%, #f9f9f9 50%,
+        transparent 50%, transparent 58.333%, #f9f9f9 58.333%, #f9f9f9 66.666%,
+        transparent 66.666%, transparent 75%, #f9f9f9 75%, #f9f9f9 83.333%,
+        transparent 83.333%, transparent 91.666%, #f9f9f9 91.666%, #f9f9f9 100%);
     background-size: 100% 100%;
     background-position: 0 0;
     border: 1px solid #e0e0e0;
@@ -574,14 +617,24 @@ nav a.active {
 
 .breastfeeding-track {
     border-color: #c8e6c9;
-    background: linear-gradient(to right, transparent 4.166%, rgba(200, 230, 201, 0.3) 4.166%, rgba(200, 230, 201, 0.3) 8.333%, transparent 8.333%, transparent 12.5%, rgba(200, 230, 201, 0.3) 12.5%, rgba(200, 230, 201, 0.3) 16.666%, transparent 16.666%), 
-                linear-gradient(to right, transparent 4.166%, #f9f9f9 4.166%, #f9f9f9 8.333%, transparent 8.333%, transparent 12.5%, #f9f9f9 12.5%, #f9f9f9 16.666%, transparent 16.666%);
+    background: linear-gradient(to right, 
+        transparent 0%, transparent 8.333%, rgba(200, 230, 201, 0.3) 8.333%, rgba(200, 230, 201, 0.3) 16.666%, 
+        transparent 16.666%, transparent 25%, rgba(200, 230, 201, 0.3) 25%, rgba(200, 230, 201, 0.3) 33.333%,
+        transparent 33.333%, transparent 41.666%, rgba(200, 230, 201, 0.3) 41.666%, rgba(200, 230, 201, 0.3) 50%,
+        transparent 50%, transparent 58.333%, rgba(200, 230, 201, 0.3) 58.333%, rgba(200, 230, 201, 0.3) 66.666%,
+        transparent 66.666%, transparent 75%, rgba(200, 230, 201, 0.3) 75%, rgba(200, 230, 201, 0.3) 83.333%,
+        transparent 83.333%, transparent 91.666%, rgba(200, 230, 201, 0.3) 91.666%, rgba(200, 230, 201, 0.3) 100%);
 }
 
 .pumping-track {
     border-color: #bbdefb;
-    background: linear-gradient(to right, transparent 4.166%, rgba(187, 222, 251, 0.3) 4.166%, rgba(187, 222, 251, 0.3) 8.333%, transparent 8.333%, transparent 12.5%, rgba(187, 222, 251, 0.3) 12.5%, rgba(187, 222, 251, 0.3) 16.666%, transparent 16.666%), 
-                linear-gradient(to right, transparent 4.166%, #f9f9f9 4.166%, #f9f9f9 8.333%, transparent 8.333%, transparent 12.5%, #f9f9f9 12.5%, #f9f9f9 16.666%, transparent 16.666%);
+    background: linear-gradient(to right, 
+        transparent 0%, transparent 8.333%, rgba(187, 222, 251, 0.3) 8.333%, rgba(187, 222, 251, 0.3) 16.666%, 
+        transparent 16.666%, transparent 25%, rgba(187, 222, 251, 0.3) 25%, rgba(187, 222, 251, 0.3) 33.333%,
+        transparent 33.333%, transparent 41.666%, rgba(187, 222, 251, 0.3) 41.666%, rgba(187, 222, 251, 0.3) 50%,
+        transparent 50%, transparent 58.333%, rgba(187, 222, 251, 0.3) 58.333%, rgba(187, 222, 251, 0.3) 66.666%,
+        transparent 66.666%, transparent 75%, rgba(187, 222, 251, 0.3) 75%, rgba(187, 222, 251, 0.3) 83.333%,
+        transparent 83.333%, transparent 91.666%, rgba(187, 222, 251, 0.3) 91.666%, rgba(187, 222, 251, 0.3) 100%);
 }
 
 .timeline-event {
@@ -657,6 +710,43 @@ nav a.active {
     padding: 2px 4px;
     border-radius: 3px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Timeline Tooltip Styles */
+.timeline-tooltip {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.timeline-tooltip.visible {
+    opacity: 1;
+}
+
+.timeline-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-bottom-color: rgba(0, 0, 0, 0.9);
+}
+
+.timeline-event.tooltip-active {
+    transform: translateX(-50%) scale(1.2);
+    z-index: 100;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.5);
 }
 
 @media (max-width: 768px) {

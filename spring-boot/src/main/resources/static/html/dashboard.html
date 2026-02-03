@@ -440,33 +440,146 @@
             const breastfeedingEntries = entries.filter(e => e.type === 'breastfeeding');
             const pumpingEntries = entries.filter(e => e.type === 'pumping');
 
-            // Create time slots for the day (24 hours)
-            const timelineHTML = `
-                <div class="timeline-day">
-                    <div class="timeline-hours">
-                        ${Array.from({length: 24}, (_, i) => `<div class="timeline-hour" data-hour="${i}">${String(i).padStart(2, '0')}:00</div>`).join('')}
-                    </div>
-                    
-                    <div class="timeline-section-label">Breastfeeding & Bottle</div>
-                    <div class="timeline-track breastfeeding-track" id="breastfeedingTrack">
-                        ${breastfeedingEntries.map((entry, index) => createBreastfeedingEvent(entry)).join('')}
-                    </div>
+            // Filter entries for morning (00:00-11:59) and afternoon/evening (12:00-23:59)
+            const morningBreastfeeding = breastfeedingEntries.filter(e => {
+                const hour = parseInt(e.displayTime.split(':')[0]);
+                return hour < 12;
+            });
+            const afternoonBreastfeeding = breastfeedingEntries.filter(e => {
+                const hour = parseInt(e.displayTime.split(':')[0]);
+                return hour >= 12;
+            });
+            const morningPumping = pumpingEntries.filter(e => {
+                const hour = parseInt(e.displayTime.split(':')[0]);
+                return hour < 12;
+            });
+            const afternoonPumping = pumpingEntries.filter(e => {
+                const hour = parseInt(e.displayTime.split(':')[0]);
+                return hour >= 12;
+            });
 
-                    <div class="timeline-section-label">Pumping</div>
-                    <div class="timeline-track pumping-track" id="pumpingTrack">
-                        ${pumpingEntries.map((entry, index) => createPumpingEvent(entry)).join('')}
+            // Create time slots for the day (split into two 12-hour periods)
+            const timelineHTML = `
+                <div class="timeline-period">
+                    <h3 class="timeline-period-title">Morning (Midnight to Noon)</h3>
+                    <div class="timeline-day">
+                        <div class="timeline-hours">
+                            ${Array.from({length: 12}, (_, i) => `<div class="timeline-hour" data-hour="${i}"><span class="hour-marker">${String(i).padStart(2, '0')}:00</span></div>`).join('')}
+                        </div>
+                        
+                        <div class="timeline-section-label">Breastfeeding & Bottle</div>
+                        <div class="timeline-track breastfeeding-track" id="breastfeedingTrackMorning">
+                            ${morningBreastfeeding.map((entry) => createBreastfeedingEvent(entry, 0, 12)).join('')}
+                        </div>
+
+                        <div class="timeline-section-label">Pumping</div>
+                        <div class="timeline-track pumping-track" id="pumpingTrackMorning">
+                            ${morningPumping.map((entry) => createPumpingEvent(entry, 0, 12)).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-period">
+                    <h3 class="timeline-period-title">Afternoon & Evening (Noon to Midnight)</h3>
+                    <div class="timeline-day">
+                        <div class="timeline-hours">
+                            ${Array.from({length: 12}, (_, i) => `<div class="timeline-hour" data-hour="${i+12}"><span class="hour-marker">${String(i+12).padStart(2, '0')}:00</span></div>`).join('')}
+                        </div>
+                        
+                        <div class="timeline-section-label">Breastfeeding & Bottle</div>
+                        <div class="timeline-track breastfeeding-track" id="breastfeedingTrackAfternoon">
+                            ${afternoonBreastfeeding.map((entry) => createBreastfeedingEvent(entry, 12, 24)).join('')}
+                        </div>
+
+                        <div class="timeline-section-label">Pumping</div>
+                        <div class="timeline-track pumping-track" id="pumpingTrackAfternoon">
+                            ${afternoonPumping.map((entry) => createPumpingEvent(entry, 12, 24)).join('')}
+                        </div>
                     </div>
                 </div>
             `;
 
             timelineContainer.innerHTML = timelineHTML;
+            
+            // Add click handlers for mobile tooltip display
+            setupTimelineClickHandlers();
         }
 
-        function createBreastfeedingEvent(entry) {
+        function setupTimelineClickHandlers() {
+            // Remove any existing tooltip
+            const existingTooltip = document.querySelector('.timeline-tooltip');
+            if (existingTooltip) {
+                existingTooltip.remove();
+            }
+
+            // Add click handlers to all timeline events
+            document.querySelectorAll('.timeline-event').forEach(event => {
+                event.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showTimelineTooltip(event);
+                });
+            });
+
+            // Close tooltip when clicking anywhere else
+            document.addEventListener('click', hideTimelineTooltip);
+        }
+
+        function showTimelineTooltip(eventElement) {
+            // Remove existing tooltip
+            hideTimelineTooltip();
+
+            // Get tooltip content from title attribute
+            const tooltipText = eventElement.getAttribute('data-tooltip');
+            if (!tooltipText) return;
+
+            // Create tooltip element
+            const tooltip = document.createElement('div');
+            tooltip.className = 'timeline-tooltip';
+            tooltip.innerHTML = tooltipText.replace(/\n/g, '<br>');
+            document.body.appendChild(tooltip);
+
+            // Position tooltip near the clicked event
+            const rect = eventElement.getBoundingClientRect();
+            const tooltipRect = tooltip.getBoundingClientRect();
+            
+            let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+            let top = rect.top - tooltipRect.height - 10;
+
+            // Adjust if tooltip goes off screen
+            if (left < 10) left = 10;
+            if (left + tooltipRect.width > window.innerWidth - 10) {
+                left = window.innerWidth - tooltipRect.width - 10;
+            }
+            if (top < 10) {
+                top = rect.bottom + 10; // Show below if no room above
+            }
+
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + window.scrollY + 'px';
+            tooltip.classList.add('visible');
+
+            // Mark the event as active
+            eventElement.classList.add('tooltip-active');
+        }
+
+        function hideTimelineTooltip() {
+            const tooltip = document.querySelector('.timeline-tooltip');
+            if (tooltip) {
+                tooltip.remove();
+            }
+            document.querySelectorAll('.timeline-event.tooltip-active').forEach(el => {
+                el.classList.remove('tooltip-active');
+            });
+        }
+
+        function createBreastfeedingEvent(entry, startHour = 0, endHour = 24) {
             const time = entry.displayTime.split(':');
             const hour = parseInt(time[0]);
             const minute = parseInt(time[1]);
-            const percentPosition = ((hour * 60 + minute) / (24 * 60)) * 100;
+            const totalMinutes = hour * 60 + minute;
+            const rangeMinutes = (endHour - startHour) * 60;
+            const minutesFromStart = totalMinutes - (startHour * 60);
+            const percentPosition = (minutesFromStart / rangeMinutes) * 100;
 
             const breastTotal = (entry.leftBreastAmount || 0) + (entry.rightBreastAmount || 0);
             const bottleOnly = breastTotal === 0 && (entry.bottleAmount || 0) > 0;
@@ -493,25 +606,28 @@
             }
 
             return `
-                <div class="${entryClass}" style="left: ${percentPosition}%" data-time="${entry.displayTime}" title="${tooltip}">
+                <div class="${entryClass}" style="left: ${percentPosition}%" data-time="${entry.displayTime}" data-tooltip="${tooltip}" title="${tooltip}">
                     <div class="event-icon">${icon}</div>
                     <div class="event-label">${label}</div>
                 </div>
             `;
         }
 
-        function createPumpingEvent(entry) {
+        function createPumpingEvent(entry, startHour = 0, endHour = 24) {
             const time = entry.displayTime.split(':');
             const hour = parseInt(time[0]);
             const minute = parseInt(time[1]);
-            const percentPosition = ((hour * 60 + minute) / (24 * 60)) * 100;
+            const totalMinutes = hour * 60 + minute;
+            const rangeMinutes = (endHour - startHour) * 60;
+            const minutesFromStart = totalMinutes - (startHour * 60);
+            const percentPosition = (minutesFromStart / rangeMinutes) * 100;
 
             const icon = entry.isPowerPump ? '⚡' : '🔄';
             const label = `${entry.amount}ml`;
             const tooltip = `Pumping at ${entry.displayTime}\nAmount: ${entry.amount}ml${entry.isPowerPump ? '\n(Power Pump)' : ''}`;
 
             return `
-                <div class="timeline-event pumping" style="left: ${percentPosition}%" data-time="${entry.displayTime}" title="${tooltip}">
+                <div class="timeline-event pumping" style="left: ${percentPosition}%" data-time="${entry.displayTime}" data-tooltip="${tooltip}" title="${tooltip}">
                     <div class="event-icon">${icon}</div>
                     <div class="event-label">${label}</div>
                 </div>
