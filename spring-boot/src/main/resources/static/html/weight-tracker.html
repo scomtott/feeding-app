@@ -160,7 +160,8 @@
 
             const centileMap = new Map(centiles.map(c => [`${c.date}:${c.weightInGrams}`, c.centileValue]));
 
-            entries.forEach(entry => {
+            // Reverse entries for table display (newest first)
+            [...entries].reverse().forEach(entry => {
                 const row = document.createElement('tr');
                 const centileKey = `${entry.date}:${entry.weightInGrams}`;
                 const centile = centileMap.get(centileKey);
