@@ -44,6 +44,11 @@
                     <div class="summary-label">Pumping vs Bottle</div>
                     <div class="summary-value" id="pumpingVsBottle">0 ml</div>
                 </div>
+                <div class="summary-card recent-feed-card">
+                    <div class="summary-label">Last Feed</div>
+                    <div class="summary-value" id="recentFeedTime">--:--</div>
+                    <div class="summary-subvalue" id="recentFeedDetails">No feed recorded</div>
+                </div>
             </div>
         </div>
         
@@ -262,11 +267,36 @@
                 let bottleTotal = 0;
                 let pumpingTotal = 0;
 
+                let recentFeedTime = '--:--';
+                let recentFeedDetails = 'No feed recorded';
+
                 if (breastfeedingResponse.ok) {
                     const breastfeedingEntries = await breastfeedingResponse.json();
                     leftBreastTotal = breastfeedingEntries.reduce((sum, e) => sum + (e.leftBreastAmount || 0), 0);
                     rightBreastTotal = breastfeedingEntries.reduce((sum, e) => sum + (e.rightBreastAmount || 0), 0);
                     bottleTotal = breastfeedingEntries.reduce((sum, e) => sum + (e.bottleAmount || 0), 0);
+
+                    if (breastfeedingEntries.length > 0) {
+                        const latestEntry = breastfeedingEntries.reduce((latest, current) =>
+                            current.time.localeCompare(latest.time) > 0 ? current : latest
+                        );
+                        const breastTotalEntry = (latestEntry.leftBreastAmount || 0) + (latestEntry.rightBreastAmount || 0);
+                        const bottleAmount = latestEntry.bottleAmount || 0;
+                        const details = [];
+
+                        if (breastTotalEntry > 0) {
+                            details.push(`Breast: ${breastTotalEntry} min`);
+                        }
+                        if (bottleAmount > 0) {
+                            details.push(`Bottle: ${bottleAmount} ml`);
+                        }
+                        if (details.length === 0) {
+                            details.push('No amounts recorded');
+                        }
+
+                        recentFeedTime = latestEntry.time;
+                        recentFeedDetails = details.join(' • ');
+                    }
                 }
 
                 if (pumpingResponse.ok) {
@@ -296,6 +326,13 @@
                 } else {
                     diffElement.style.color = '#333';
                     diffElement.style.fontWeight = 'normal';
+                }
+
+                const recentFeedTimeElement = document.getElementById('recentFeedTime');
+                const recentFeedDetailsElement = document.getElementById('recentFeedDetails');
+                if (recentFeedTimeElement && recentFeedDetailsElement) {
+                    recentFeedTimeElement.textContent = recentFeedTime;
+                    recentFeedDetailsElement.textContent = recentFeedDetails;
                 }
             } catch (error) {
                 console.error('Failed to load summary:', error);

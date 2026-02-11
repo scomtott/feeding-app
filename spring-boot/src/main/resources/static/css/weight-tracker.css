@@ -146,6 +146,39 @@ nav a.active {
     font-size: 18px;
 }
 
+.predict-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 15px;
+}
+
+.predict-form .form-group {
+    min-width: 220px;
+}
+
+.btn-secondary {
+    background-color: #607D8B;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background-color: #546E7A;
+}
+
+.btn-secondary:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
 .chart-container {
     position: relative;
     height: 400px;

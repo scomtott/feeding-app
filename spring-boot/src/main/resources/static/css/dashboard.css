@@ -99,6 +99,19 @@ h1 {
     font-family: 'Courier New', monospace;
 }
 
+.summary-subvalue {
+    font-size: 12px;
+    color: #555;
+    margin-top: 6px;
+    line-height: 1.4;
+    font-weight: 600;
+}
+
+.recent-feed-card .summary-value {
+    color: #2196F3;
+    font-size: 20px;
+}
+
 .controls {
     display: flex;
     gap: 10px;

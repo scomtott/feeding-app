@@ -6,6 +6,7 @@
     <title>Weight Tracker</title>
     <link rel="stylesheet" href="../css/weight-tracker.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
 <body>
     <div class="container">
@@ -44,6 +45,15 @@
 
         <div class="chart-section">
             <h2>Weight Progress & Centiles</h2>
+            <form id="predict-form" class="predict-form">
+                <div class="form-group">
+                    <label for="predict-days">Number of days to predict:</label>
+                    <input type="number" id="predict-days" min="1" max="365" required>
+                </div>
+                <button type="submit" class="btn-submit">Predict</button>
+                <button type="button" class="btn-secondary" id="clear-predictions" disabled>Clear Predictions</button>
+                <span id="predict-message" class="form-message"></span>
+            </form>
             <div id="content" class="chart-container"></div>
         </div>
 
@@ -77,6 +87,9 @@
     <script src="../js/nav.js"></script>
     <script>
         let chart = null;
+        let predictedCentiles = [];
+        let cachedEntries = [];
+        let cachedCentiles = [];
         const locationMap = {
             'HOME': 'Home',
             'WEIGHING_CLINIC': 'Weighing Clinic',
@@ -129,6 +142,47 @@
             }
         });
 
+        document.getElementById('predict-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const daysInput = document.getElementById('predict-days');
+            const messageSpan = document.getElementById('predict-message');
+            const daysToPredict = parseInt(daysInput.value, 10);
+
+            if (!Number.isFinite(daysToPredict) || daysToPredict < 1) {
+                messageSpan.textContent = 'Enter a valid number of days.';
+                messageSpan.style.color = '#f44336';
+                return;
+            }
+
+            try {
+                appLogger.info('Requesting weight prediction', { daysToPredict });
+
+                const response = await fetch(`/api/weight/centiles/predict?daysToPredict=${daysToPredict}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                predictedCentiles = await response.json();
+                messageSpan.textContent = `Predicted ${daysToPredict} day(s).`;
+                messageSpan.style.color = '#4CAF50';
+                document.getElementById('clear-predictions').disabled = false;
+
+                displayWeightChart(cachedEntries, cachedCentiles, predictedCentiles);
+            } catch (error) {
+                appLogger.error('Failed to load predictions', { error: error.message });
+                messageSpan.textContent = 'Error: ' + error.message;
+                messageSpan.style.color = '#f44336';
+            }
+        });
+
+        document.getElementById('clear-predictions').addEventListener('click', () => {
+            predictedCentiles = [];
+            document.getElementById('clear-predictions').disabled = true;
+            document.getElementById('predict-message').textContent = '';
+            displayWeightChart(cachedEntries, cachedCentiles, predictedCentiles);
+        });
+
         async function loadWeightData() {
             try {
                 appLogger.info('Loading weight data');
@@ -145,10 +199,13 @@
                 const entries = await entriesResponse.json();
                 const centiles = await centilesResponse.json();
 
+                cachedEntries = entries;
+                cachedCentiles = centiles;
+
                 appLogger.info('Loaded data', { entryCount: entries.length, centileCount: centiles.length });
 
                 updateEntriesTable(entries, centiles);
-                displayWeightChart(entries, centiles);
+                displayWeightChart(entries, centiles, predictedCentiles);
             } catch (error) {
                 appLogger.error('Failed to load weight data', { error: error.message });
             }
@@ -240,50 +297,89 @@
             }
         }
 
-        function displayWeightChart(entries, centiles) {
+        function displayWeightChart(entries, centiles, predictedCentilesData = []) {
             if (entries.length === 0) {
                 document.getElementById('content').innerHTML = '<p class="no-data">No weight entries recorded yet.</p>';
                 return;
             }
 
             const centileMap = new Map(centiles.map(c => [`${c.date}:${c.weightInGrams}`, c.centileValue]));
+            const lastEntryDate = entries[entries.length - 1].date;
+            const predictedFuture = predictedCentilesData.filter(c => c.date > lastEntryDate);
+            const timelineData = entries.map(entry => ({
+                date: entry.date,
+                weight: entry.weightInGrams,
+                centile: centileMap.get(`${entry.date}:${entry.weightInGrams}`) ?? null,
+                predictedWeight: null,
+                predictedCentile: null
+            }));
 
-            // Calculate dynamic weight range with 10% padding
+            predictedFuture.forEach(prediction => {
+                timelineData.push({
+                    date: prediction.date,
+                    weight: null,
+                    centile: null,
+                    predictedWeight: prediction.weightInGrams,
+                    predictedCentile: prediction.centileValue
+                });
+            });
+
+            // Calculate dynamic weight range with 10% padding (expand only if predictions exceed range)
             const weights = entries.map(e => e.weightInGrams);
-            const minWeight = Math.min(...weights);
-            const maxWeight = Math.max(...weights);
+            let minWeight = Math.min(...weights);
+            let maxWeight = Math.max(...weights);
+
+            if (predictedFuture.length > 0) {
+                const predictedWeights = predictedFuture.map(p => p.weightInGrams);
+                const predictedMin = Math.min(...predictedWeights);
+                const predictedMax = Math.max(...predictedWeights);
+                minWeight = Math.min(minWeight, predictedMin);
+                maxWeight = Math.max(maxWeight, predictedMax);
+            }
             const weightPadding = (maxWeight - minWeight) * 0.1;
             const yMin = Math.max(500, Math.floor((minWeight - weightPadding) / 100) * 100);
             const yMax = Math.ceil((maxWeight + weightPadding) / 100) * 100;
 
             // Calculate dynamic centile range with padding
-            const centileValues = centiles.map(c => c.centileValue).filter(v => v !== null);
-            const minCentile = Math.min(...centileValues);
-            const maxCentile = Math.max(...centileValues);
+            const centileValues = centiles.map(c => c.centileValue)
+                .concat(predictedFuture.map(c => c.centileValue))
+                .filter(v => v !== null);
+            const minCentile = centileValues.length > 0 ? Math.min(...centileValues) : 0;
+            const maxCentile = centileValues.length > 0 ? Math.max(...centileValues) : 100;
             const centilePadding = (maxCentile - minCentile) * 0.1;
             const y1Min = Math.max(0, Math.floor(minCentile - centilePadding));
             const y1Max = Math.min(100, Math.ceil(maxCentile + centilePadding));
 
             chart = displayChart({
                 containerId: 'content',
-                data: entries,
+                data: timelineData,
                 chartInstance: chart,
                 prepareLabels: (data) => data.map(entry => entry.date),
                 datasets: [
                     {
                         label: 'Weight (g)',
-                        prepareData: (data) => data.map(entry => entry.weightInGrams),
+                        prepareData: (data) => data.map(entry => entry.weight),
                         borderColor: '#2196F3',
                         backgroundColor: 'rgba(33, 150, 243, 0.1)',
                         fill: true,
                         yAxisID: 'y'
                     },
+                    ...(predictedFuture.length > 0 ? [
+                        {
+                            label: 'Predicted Weight (g)',
+                            prepareData: (data) => data.map(entry => entry.predictedWeight),
+                            borderColor: '#009688',
+                            backgroundColor: 'rgba(0, 150, 136, 0.1)',
+                            borderDash: [6, 6],
+                            fill: false,
+                            yAxisID: 'y',
+                            pointRadius: 4,
+                            pointBackgroundColor: '#009688'
+                        }
+                    ] : []),
                     {
                         label: 'Centile (%)',
-                        prepareData: (data) => data.map(entry => {
-                            const key = `${entry.date}:${entry.weightInGrams}`;
-                            return centileMap.get(key) || null;
-                        }).filter(v => v !== null),
+                        prepareData: (data) => data.map(entry => entry.centile),
                         borderColor: '#FF9800',
                         borderDash: [5, 5],
                         fill: false,
@@ -299,6 +395,17 @@
                         title: { display: true, text: 'Weight (grams)' },
                         min: yMin,
                         max: yMax
+                    },
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            tooltipFormat: 'yyyy-MM-dd'
+                        },
+                        ticks: {
+                            maxRotation: window.innerWidth <= 480 ? 45 : 0,
+                            minRotation: window.innerWidth <= 480 ? 45 : 0
+                        }
                     },
                     y1: {
                         type: 'linear',

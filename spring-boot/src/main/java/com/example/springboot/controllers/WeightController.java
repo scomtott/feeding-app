@@ -1,17 +1,24 @@
 package com.example.springboot.controllers;
 
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.LocalDate;
 import java.util.List;
+
 import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import com.example.springboot.services.WeightService;
-import com.example.springboot.models.WeightEntry;
 import com.example.springboot.models.Centile;
+import com.example.springboot.models.WeightEntry;
+import com.example.springboot.services.WeightService;
 
-import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/weight")
@@ -36,6 +43,11 @@ public class WeightController {
     @GetMapping("/centiles")
     public List<Centile> getCentiles() {
         return weightService.calculateCentiles();
+    }
+
+    @GetMapping("/centiles/predict")
+    public List<Centile> getCentilesWithPrediction(@RequestParam int daysToPredict) {
+        return weightService.predictWeightTrend(daysToPredict);
     }
 
     @PostMapping("/entries")

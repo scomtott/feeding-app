@@ -210,7 +210,6 @@
                 return;
             }
 
-
             let discrepancyData = new Array(pumpingTotals.length);
             let cumulativeDiscrepancy = 0;
             let j = 0;
@@ -219,7 +218,14 @@
                     continue;
                 }
 
-                const discrepancy = pumpingTotals[j].amount - breastFeedingTotals[i].bottleTotal;
+                // If there is a breast feeding event for the day but no pumping event yet,
+                // set pumping amount to zero to show the discrepancy.
+                let pumpingAmount = 0;
+                if (j < pumpingTotals.length) {
+                    pumpingAmount = pumpingTotals[j].amount;
+                }
+
+                const discrepancy = pumpingAmount - breastFeedingTotals[i].bottleTotal;
                 cumulativeDiscrepancy = cumulativeDiscrepancy + discrepancy;
 
                 discrepancyData[j] = {
@@ -229,6 +235,18 @@
                 };
 
                 j++;
+            }
+
+            // if there is a pumping event but no breast feeding event yet,
+            // add it to the end of the data.
+            if (j < pumpingTotals.length - 1) {
+                discrepancyData.push(
+                    {
+                        date: pumpingTotals[j+1].date,
+                        cumulativeDiscrepancy: cumulativeDiscrepancy + pumpingTotals[j+1].amount,
+                        discrepancy: pumpingTotals[j+1].amount
+                    }
+                )
             }
 
             discrepancyChart = displayChart({
