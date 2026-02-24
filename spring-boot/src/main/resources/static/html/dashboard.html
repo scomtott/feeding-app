@@ -86,6 +86,10 @@
         </div>
 
         <h2>Feeding Graph</h2>
+        <div class="summary-date-selector">
+            <label for="chartDays">Days to show:</label>
+            <input type="number" id="chartDays" min="1" max="365" value="30" required>
+        </div>
         <div id="content">
             <div class="loading">
                 <div class="spinner"></div>
@@ -138,6 +142,7 @@
     <script>
         let chart = null;
         let allEntries = [];
+        const CHART_DAYS_STORAGE_KEY = 'dashboardChartDays';
 
         // Set default date and time to now
         document.addEventListener('DOMContentLoaded', () => {
@@ -146,6 +151,7 @@
             document.getElementById('time').value = now.toTimeString().substring(0, 5);
             document.getElementById('timelineDate').valueAsDate = now;
             document.getElementById('summaryDate').valueAsDate = now;
+            initializeChartDays();
             loadDailyTotals();
             loadEntries();
             loadTimeline();
@@ -159,6 +165,13 @@
 
         // Load timeline when date changes
         document.getElementById('timelineDate').addEventListener('change', loadTimeline);
+
+        // Reload chart when day window changes
+        document.getElementById('chartDays').addEventListener('change', () => {
+            const daysToShow = getChartDaysToShow();
+            localStorage.setItem(CHART_DAYS_STORAGE_KEY, String(daysToShow));
+            loadDailyTotals();
+        });
 
         // Handle form submission
         document.getElementById('entryForm').addEventListener('submit', async (e) => {
@@ -215,10 +228,98 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                displayDashboardChart(data);
+                const daysToShow = getChartDaysToShow();
+
+                const windowedData = buildChartWindow(data, daysToShow);
+                displayDashboardChart(windowedData);
             } catch (error) {
                 displayError(`Failed to load data: ${error.message}`);
             }
+        }
+
+        function normalizeChartDays(value) {
+            const parsed = parseInt(value, 10);
+            if (!Number.isFinite(parsed) || parsed <= 0) {
+                return 30;
+            }
+            return Math.min(parsed, 365);
+        }
+
+        function getChartDaysToShow() {
+            const daysInput = document.getElementById('chartDays');
+            const daysToShow = normalizeChartDays(daysInput?.value);
+
+            if (daysInput && daysInput.value !== String(daysToShow)) {
+                daysInput.value = String(daysToShow);
+            }
+
+            return daysToShow;
+        }
+
+        function initializeChartDays() {
+            const daysInput = document.getElementById('chartDays');
+            if (!daysInput) {
+                return;
+            }
+
+            const storedValue = localStorage.getItem(CHART_DAYS_STORAGE_KEY);
+            const daysToShow = normalizeChartDays(storedValue ?? daysInput.value);
+            daysInput.value = String(daysToShow);
+            localStorage.setItem(CHART_DAYS_STORAGE_KEY, String(daysToShow));
+        }
+
+        function formatDateKey(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function toDateKey(value) {
+            if (!value) {
+                return null;
+            }
+
+            if (typeof value === 'string') {
+                return value.split('T')[0];
+            }
+
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime())) {
+                return null;
+            }
+
+            return formatDateKey(parsed);
+        }
+
+        function buildChartWindow(totals, daysToShow) {
+            const totalsByDate = new Map();
+
+            totals.forEach(entry => {
+                const dateKey = toDateKey(entry.date);
+                if (dateKey) {
+                    totalsByDate.set(dateKey, entry);
+                }
+            });
+
+            const windowData = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            for (let offset = daysToShow - 1; offset >= 0; offset--) {
+                const currentDate = new Date(today);
+                currentDate.setDate(today.getDate() - offset);
+                const dateKey = formatDateKey(currentDate);
+                const existing = totalsByDate.get(dateKey);
+
+                windowData.push({
+                    date: dateKey,
+                    breastTotal: existing?.breastTotal || 0,
+                    bottleTotal: existing?.bottleTotal || 0
+                });
+            }
+
+            return windowData;
         }
 
         function displayDashboardChart(totals) {

@@ -214,7 +214,9 @@
             let cumulativeDiscrepancy = 0;
             let j = 0;
             for (let i = 0; i < breastFeedingTotals.length; i++) {
-                if (pumpingTotals[j].date !== breastFeedingTotals[i].date) {
+                window.appLogger?.info('Processing breast feeding total', { date: breastFeedingTotals[i].date, bottleTotal: breastFeedingTotals[i].bottleTotal });
+                window.appLogger?.info('Finding matching pumping total', { currentPumpingIndex: j, pumpingTotal: pumpingTotals[j] });
+                if (j < pumpingTotals.length && pumpingTotals[j].date !== breastFeedingTotals[i].date) {
                     continue;
                 }
 
