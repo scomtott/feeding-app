@@ -19,16 +19,18 @@ repositories {
 }
 
 dependencies {
-	implementation("org.springframework.boot:spring-boot-starter-webmvc")
-    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+	implementation("org.springframework.boot:spring-boot-starter-web")
+	implementation("org.springframework.boot:spring-boot-starter-logging")
+	implementation("org.springframework.boot:spring-boot-starter-websocket")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.hibernate.orm:hibernate-community-dialects")
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
 	compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
-    testCompileOnly("org.projectlombok:lombok")
-    testAnnotationProcessor("org.projectlombok:lombok")
+	implementation("org.quartz-scheduler:quartz")
+	implementation("org.quartz-scheduler:quartz-jobs")
 	}
 
 tasks.withType<Test> {

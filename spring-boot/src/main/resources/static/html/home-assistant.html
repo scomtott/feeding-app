@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Assistant</title>
+    <link rel="stylesheet" href="../css/home-assistant.css">
+    <script src="../js/logger.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <h1>Home Assistant Lights</h1>
+
+        <div class="controls">
+            <button type="button" id="reloadButton">Reload Lights</button>
+            <span id="statusMessage" class="status-message"></span>
+        </div>
+
+        <div class="table-section">
+            <table class="lights-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Entity ID</th>
+                        <th>State</th>
+                        <th>Brightness</th>
+                        <th>Color Mode</th>
+                        <th>Power</th>
+                        <th>Set Brightness</th>
+                    </tr>
+                </thead>
+                <tbody id="lightsTableBody">
+                    <tr><td colspan="7" class="muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('reloadButton').addEventListener('click', loadLights);
+            loadLights();
+        });
+
+        async function loadLights() {
+            const tbody = document.getElementById('lightsTableBody');
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = '';
+            tbody.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
+
+            try {
+                const response = await fetch('/api/homeassistant/lights');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const lights = await response.json();
+                if (!Array.isArray(lights) || lights.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="muted">No light entities found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = lights.map(light => {
+                    const name = light?.attributes?.friendly_name || 'Unnamed';
+                    const entityId = light?.entity_id || '';
+                    const state = light?.state || 'unknown';
+                    const brightness = light?.attributes?.brightness ?? '-';
+                    const colorMode = light?.attributes?.color_mode  || '-';
+                    return `
+                        <tr>
+                            <td>${escapeHtml(name)}</td>
+                            <td>${escapeHtml(entityId)}</td>
+                            <td>${escapeHtml(state)}</td>
+                            <td>${escapeHtml(String(brightness))}</td>
+                            <td>${escapeHtml(String(colorMode))}</td>
+                            <td>
+                                <button type="button" class="btn-small" onclick="toggleLight('${encodeForOnClick(entityId)}', 'on')">On</button>
+                                <button type="button" class="btn-small btn-secondary" onclick="toggleLight('${encodeForOnClick(entityId)}', 'off')">Off</button>
+                            </td>
+                            <td>
+                                <input type="number" min="0" max="255" value="${escapeHtml(String(brightness === '-' ? 128 : brightness))}" id="brightness-${escapeHtml(entityId)}" style="width: 80px; margin-right: 6px;">
+                                <button type="button" class="btn-small" onclick="setBrightness('${encodeForOnClick(entityId)}')">Set</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                window.appLogger?.error('Failed to load Home Assistant lights', { error: error.message });
+                tbody.innerHTML = `<tr><td colspan="7" class="error">Failed to load lights: ${escapeHtml(error.message)}</td></tr>`;
+            }
+        }
+
+        async function toggleLight(entityId, action) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = '';
+            statusMessage.classList.remove('error');
+
+            try {
+                const response = await fetch(`/api/homeassistant/lights/${action}?entity_id=${encodeURIComponent(entityId)}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                statusMessage.textContent = `Updated ${entityId}: ${action}`;
+                await loadLights();
+            } catch (error) {
+                window.appLogger?.error('Failed to toggle light', { entityId, action, error: error.message });
+                statusMessage.textContent = `Failed to update ${entityId}: ${error.message}`;
+                statusMessage.classList.add('error');
+            }
+        }
+
+        async function setBrightness(entityId) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = '';
+            statusMessage.classList.remove('error');
+
+            const input = document.getElementById(`brightness-${entityId}`);
+            const parsed = parseInt(input?.value, 10);
+            if (!Number.isInteger(parsed)) {
+                statusMessage.textContent = 'Brightness must be an integer';
+                statusMessage.classList.add('error');
+                return;
+            }
+
+            const brightness = Math.max(0, Math.min(255, parsed));
+
+            try {
+                const response = await fetch(`/api/homeassistant/lights/brightness?entity_id=${encodeURIComponent(entityId)}&brightness=${brightness}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                statusMessage.textContent = `Updated ${entityId} brightness to ${brightness}`;
+                await loadLights();
+            } catch (error) {
+                window.appLogger?.error('Failed to set light brightness', { entityId, brightness, error: error.message });
+                statusMessage.textContent = `Failed to set brightness for ${entityId}: ${error.message}`;
+                statusMessage.classList.add('error');
+            }
+        }
+
+        function encodeForOnClick(text) {
+            return String(text).replace(/'/g, "\\'");
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+    <script src="../js/nav.js"></script>
+</body>
+</html>
