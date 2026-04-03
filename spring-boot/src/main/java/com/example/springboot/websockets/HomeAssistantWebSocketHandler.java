@@ -1,7 +1,9 @@
 package com.example.springboot.websockets;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -12,22 +14,19 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.example.springboot.properties.HomeAssistantProperties;
-import com.example.springboot.websockets.messages.HaWsAuthInvalid;
-import com.example.springboot.websockets.messages.HaWsAuthOk;
-import com.example.springboot.websockets.messages.HaWsAuthRequest;
-import com.example.springboot.websockets.messages.HaWsAuthRequired;
-import com.example.springboot.websockets.messages.HaWsEnvelope;
-import com.example.springboot.websockets.messages.HaWsEvent;
-import com.example.springboot.websockets.messages.HaWsResult;
-import com.example.springboot.websockets.messages.HaWsStateChangedEvent;
-import com.example.springboot.websockets.messages.HaWsSubscribeEventsRequest;
+import com.example.springboot.models.home_assistant.LightEntity;
+import com.example.springboot.models.home_assistant.BinarySensorEntity;
+import com.example.springboot.models.home_assistant.SensorEntity;
+import com.example.springboot.websockets.messages.*;
+import com.example.springboot.services.LightBrightnessService;
+import com.example.springboot.services.BinarySensorService;
+import com.example.springboot.services.SensorService;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
 
@@ -35,6 +34,38 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final AtomicInteger messageIdCounter = new AtomicInteger(0);
     private final Set<String> subscribedSessionIds = ConcurrentHashMap.newKeySet();
+    private final Map<String, DomainEventRoute<?>> domainEventRoutes;
+
+    public HomeAssistantWebSocketHandler(
+        HomeAssistantProperties properties,
+        LightBrightnessService brightnessService,
+        BinarySensorService binarySensorService,
+        SensorService sensorService,
+        ObjectMapper mapper
+    ) {
+        this.homeAssistantProperties = properties;
+        this.objectMapper = mapper;
+        this.domainEventRoutes = Map.of(
+            "light",
+            new DomainEventRoute<>(
+                new TypeReference<HaWsStateChangedEvent<LightEntity>>() {
+                },
+                brightnessService::handleLightStateChanged
+            ),
+            "binary_sensor",
+            new DomainEventRoute<>(
+                new TypeReference<HaWsStateChangedEvent<BinarySensorEntity>>() {
+                },
+                binarySensorService::handleBinarySensorStateChanged
+            ),
+            "sensor",
+            new DomainEventRoute<>(
+                new TypeReference<HaWsStateChangedEvent<SensorEntity>>() {
+                },
+                sensorService::handleSensorStateChanged
+            )
+        );
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -145,11 +176,46 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        HaWsStateChangedEvent stateChangedEvent = objectMapper.readValue(payload, HaWsStateChangedEvent.class);
-        String entityId = stateChangedEvent.event() == null || stateChangedEvent.event().data() == null
+        String entityId = eventMessage.event().data() == null || eventMessage.event().data().get("entity_id") == null
             ? "unknown"
-            : stateChangedEvent.event().data().entityId();
+            : eventMessage.event().data().get("entity_id").asText("unknown");
+
+        String domain = parseDomainFromEntityId(entityId);
+        DomainEventRoute<?> route = domainEventRoutes.get(domain);
+
+        if (route == null) {
+            log.debug("Unhandled Home Assistant domain: {}", domain);
+            return;
+        }
+
+        route.handle(payload, objectMapper);
 
         log.debug("Home Assistant state_changed event for {}", entityId == null ? "unknown" : entityId);
+
+        if (entityId != null && entityId.contains("person.tom")) {
+            log.info("Person Tom state changed: {}", payload);
+        }
+    }
+
+    private String parseDomainFromEntityId(String entityId) {
+        if (entityId == null || !entityId.contains(".")) {
+            return "unknown";
+        }
+        return entityId.substring(0, entityId.indexOf('.'));
+    }
+
+    private static final class DomainEventRoute<T> {
+        private final TypeReference<HaWsStateChangedEvent<T>> typeReference;
+        private final Consumer<HaWsStateChangedEvent<T>> consumer;
+
+        private DomainEventRoute(TypeReference<HaWsStateChangedEvent<T>> typeReference, Consumer<HaWsStateChangedEvent<T>> consumer) {
+            this.typeReference = typeReference;
+            this.consumer = consumer;
+        }
+
+        private void handle(String payload, ObjectMapper objectMapper) throws IOException {
+            HaWsStateChangedEvent<T> event = objectMapper.readValue(payload, typeReference);
+            consumer.accept(event);
+        }
     }
 }

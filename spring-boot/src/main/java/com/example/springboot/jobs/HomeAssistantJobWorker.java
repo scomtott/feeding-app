@@ -4,7 +4,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.example.springboot.models.home_assistant.LightEntity;
-import com.example.springboot.services.HomeAssistantService;
+import com.example.springboot.services.LightBrightnessService;
 import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class HomeAssistantJobWorker {
-    private final HomeAssistantService homeAssistantService;
+    private final LightBrightnessService lightBrightnessService;
 
     private final String[] lightEntityIds = {
         "kitchen_front",
@@ -29,15 +29,15 @@ public class HomeAssistantJobWorker {
         "wiz_tunable_white_e60b0a"
     };
 
-    public HomeAssistantJobWorker(HomeAssistantService homeAssistantService) {
-        this.homeAssistantService = homeAssistantService;
+    public HomeAssistantJobWorker(LightBrightnessService lightBrightnessService) {
+        this.lightBrightnessService = lightBrightnessService;
     }
 
     @Async
     public void doWork() {
         log.info("Starting Home Assistant job worker.");
         try {
-            List<LightEntity> lights = homeAssistantService.getLightEntities();
+            List<LightEntity> lights = lightBrightnessService.getLightEntities();
         } 
         catch (Exception e) {
             log.error("Error occurred in Home Assistant job worker", e);
