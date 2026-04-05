@@ -80,4 +80,17 @@ public class QuartzDelayedActionService implements DelayedActionService {
             throw new IllegalStateException("Failed to cancel delayed action: " + actionKey, e);
         }
     }
+    @Override
+    public boolean isScheduled(String actionKey) {
+        if (actionKey == null || actionKey.isBlank()) {
+            return false;
+        }
+
+        JobKey jobKey = JobKey.jobKey(actionKey, GROUP);
+        try {
+            return scheduler.checkExists(jobKey);
+        } catch (SchedulerException e) {
+            throw new IllegalStateException("Failed to check delayed action: " + actionKey, e);
+        }
+    }
 }

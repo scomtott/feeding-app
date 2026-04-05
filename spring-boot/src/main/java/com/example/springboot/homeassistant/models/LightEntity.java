@@ -18,6 +18,7 @@ public record LightEntity(
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public record Attributes(
 		@JsonProperty("friendly_name") String friendlyName,
+		@JsonProperty("entity_id") List<String> memberEntityIds,
 		Integer brightness,
 		@JsonProperty("color_mode") ColorMode colorMode,
 		@JsonProperty("supported_color_modes") Set<ColorMode> supportedColorModes,

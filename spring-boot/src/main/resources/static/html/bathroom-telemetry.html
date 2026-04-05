@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bathroom Telemetry</title>
+    <link rel="stylesheet" href="../css/bathroom-telemetry.css">
+    <script src="../js/chart-utils.js"></script>
+    <script src="../js/logger.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <h1>Bathroom Telemetry</h1>
+
+        <div class="controls">
+            <div class="field">
+                <label for="fromInput">From</label>
+                <input id="fromInput" type="datetime-local">
+            </div>
+            <div class="field">
+                <label for="toInput">To</label>
+                <input id="toInput" type="datetime-local">
+            </div>
+            <div class="field field-small">
+                <label for="limitInput">Limit</label>
+                <input id="limitInput" type="number" min="1" value="500">
+            </div>
+            <button type="button" id="reloadButton">Reload</button>
+        </div>
+
+        <div class="summary" id="summary"></div>
+
+        <section class="panel">
+            <h2>Telemetry Chart</h2>
+            <div id="telemetryChartContent" class="chart-content">
+                <p class="muted">Loading chart...</p>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Timeline Points</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time (UTC)</th>
+                            <th>Occupancy</th>
+                            <th>Illuminance (lx)</th>
+                            <th>light.bathroom_1</th>
+                            <th>light.bathroom_2</th>
+                            <th>light.gledopto_light</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timelineBody">
+                        <tr><td colspan="6" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Raw Events</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time (UTC)</th>
+                            <th>Entity</th>
+                            <th>Signal</th>
+                            <th>Bool</th>
+                            <th>Num</th>
+                            <th>Text</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eventsBody">
+                        <tr><td colspan="7" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        const fromInput = document.getElementById('fromInput');
+        const toInput = document.getElementById('toInput');
+        const limitInput = document.getElementById('limitInput');
+        const summary = document.getElementById('summary');
+        const timelineBody = document.getElementById('timelineBody');
+        const eventsBody = document.getElementById('eventsBody');
+        let telemetryChart = null;
+
+        document.getElementById('reloadButton').addEventListener('click', loadAll);
+
+        initDefaults();
+        loadAll();
+
+        function initDefaults() {
+            const now = new Date();
+            const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            toInput.value = toLocalInputValue(now);
+            fromInput.value = toLocalInputValue(from);
+        }
+
+        async function loadAll() {
+            const fromIso = fromInput.value ? new Date(fromInput.value).toISOString() : null;
+            const toIso = toInput.value ? new Date(toInput.value).toISOString() : null;
+            const limit = parseInt(limitInput.value, 10);
+
+            const params = new URLSearchParams();
+            if (fromIso) params.set('from', fromIso);
+            if (toIso) params.set('to', toIso);
+            if (Number.isInteger(limit) && limit > 0) params.set('limit', String(limit));
+
+            timelineBody.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
+            eventsBody.innerHTML = '<tr><td colspan="7" class="muted">Loading...</td></tr>';
+            summary.textContent = 'Loading...';
+
+            try {
+                const [timelineRes, eventsRes] = await Promise.all([
+                    fetch('/api/homeassistant/telemetry/timeline?' + params.toString()),
+                    fetch('/api/homeassistant/telemetry/events?' + params.toString())
+                ]);
+
+                if (!timelineRes.ok) throw new Error('Timeline request failed: ' + timelineRes.status);
+                if (!eventsRes.ok) throw new Error('Events request failed: ' + eventsRes.status);
+
+                const timeline = await timelineRes.json();
+                const events = await eventsRes.json();
+
+                renderSummary(timeline, events);
+                renderTelemetryChart(timeline);
+                renderTimeline(timeline);
+                renderEvents(events);
+            } catch (error) {
+                window.appLogger?.error('Failed to load bathroom telemetry', { error: error.message });
+                summary.textContent = 'Failed to load telemetry: ' + error.message;
+                document.getElementById('telemetryChartContent').innerHTML = '<p class="error">Failed to load chart data</p>';
+                timelineBody.innerHTML = '<tr><td colspan="6" class="error">Failed to load timeline data</td></tr>';
+                eventsBody.innerHTML = '<tr><td colspan="7" class="error">Failed to load raw event data</td></tr>';
+            }
+        }
+
+        function renderSummary(timeline, events) {
+            const illumEvents = events.filter(e => e.signalType === 'ILLUMINANCE').length;
+            const stateEvents = events.filter(e => e.signalType !== 'ILLUMINANCE').length;
+            summary.innerHTML = [
+                `<span><strong>Timeline rows:</strong> ${timeline.length}</span>`,
+                `<span><strong>Raw events:</strong> ${events.length}</span>`,
+                `<span><strong>Illuminance events:</strong> ${illumEvents}</span>`,
+                `<span><strong>State-change events:</strong> ${stateEvents}</span>`
+            ].join(' ');
+        }
+
+        function renderTelemetryChart(rows) {
+            telemetryChart = displayChart({
+                containerId: 'telemetryChartContent',
+                data: rows,
+                emptyMessage: 'No timeline data to chart in this range',
+                chartInstance: telemetryChart,
+                prepareLabels: data => data.map(row => {
+                    const d = new Date(row.tsUtc);
+                    return Number.isNaN(d.getTime()) ? row.tsUtc : d.toLocaleTimeString();
+                }),
+                datasets: [
+                    {
+                        label: 'Illuminance (lx)',
+                        borderColor: '#1565c0',
+                        backgroundColor: 'rgba(21, 101, 192, 0.12)',
+                        prepareData: data => data.map(row => row.illuminanceLux ?? null),
+                        yAxisID: 'y1',
+                        fill: false,
+                        pointRadius: 1
+                    },
+                    {
+                        label: 'Occupancy',
+                        borderColor: '#2e7d32',
+                        backgroundColor: 'rgba(46, 125, 50, 0.08)',
+                        prepareData: data => data.map(row => boolToStep(row.occupancy)),
+                        yAxisID: 'y',
+                        fill: false,
+                        pointRadius: 1,
+                        tension: 0
+                    },
+                    {
+                        label: 'light.bathroom_1',
+                        borderColor: '#f57f17',
+                        backgroundColor: 'rgba(245, 127, 23, 0.08)',
+                        prepareData: data => data.map(row => boolToStep(row.lightBathroom1On)),
+                        yAxisID: 'y',
+                        fill: false,
+                        pointRadius: 1,
+                        tension: 0
+                    },
+                    {
+                        label: 'light.bathroom_2',
+                        borderColor: '#6a1b9a',
+                        backgroundColor: 'rgba(106, 27, 154, 0.08)',
+                        prepareData: data => data.map(row => boolToStep(row.lightBathroom2On)),
+                        yAxisID: 'y',
+                        fill: false,
+                        pointRadius: 1,
+                        tension: 0
+                    },
+                    {
+                        label: 'light.gledopto_light',
+                        borderColor: '#c62828',
+                        backgroundColor: 'rgba(198, 40, 40, 0.08)',
+                        prepareData: data => data.map(row => boolToStep(row.lightGledoptoOn)),
+                        yAxisID: 'y',
+                        fill: false,
+                        pointRadius: 1,
+                        tension: 0
+                    }
+                ],
+                scales: {
+                    y: {
+                        position: 'left',
+                        min: -0.1,
+                        max: 1.1,
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                return value === 1 ? 'On/Occupied' : value === 0 ? 'Off/Clear' : '';
+                            }
+                        }
+                    },
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Illuminance (lx)'
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTimeline(rows) {
+            if (!Array.isArray(rows) || rows.length === 0) {
+                timelineBody.innerHTML = '<tr><td colspan="6" class="muted">No timeline data in range</td></tr>';
+                return;
+            }
+
+            timelineBody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${escapeHtml(formatInstant(r.tsUtc))}</td>
+                    <td>${formatBool(r.occupancy)}</td>
+                    <td>${formatNum(r.illuminanceLux)}</td>
+                    <td>${formatBool(r.lightBathroom1On)}</td>
+                    <td>${formatBool(r.lightBathroom2On)}</td>
+                    <td>${formatBool(r.lightGledoptoOn)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderEvents(rows) {
+            if (!Array.isArray(rows) || rows.length === 0) {
+                eventsBody.innerHTML = '<tr><td colspan="7" class="muted">No raw event data in range</td></tr>';
+                return;
+            }
+
+            eventsBody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${escapeHtml(formatInstant(r.tsUtc))}</td>
+                    <td>${escapeHtml(r.entityId || '')}</td>
+                    <td>${escapeHtml(r.signalType || '')}</td>
+                    <td>${formatBool(r.valueBool)}</td>
+                    <td>${formatNum(r.valueNum)}</td>
+                    <td>${escapeHtml(r.valueText || '')}</td>
+                    <td>${escapeHtml(r.source || '')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function formatInstant(iso) {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            return Number.isNaN(d.getTime()) ? iso : d.toISOString();
+        }
+
+        function formatBool(value) {
+            if (value === true) return 'true';
+            if (value === false) return 'false';
+            return '-';
+        }
+
+        function formatNum(value) {
+            return value == null ? '-' : String(value);
+        }
+
+        function boolToStep(value) {
+            if (value === true) return 1;
+            if (value === false) return 0;
+            return null;
+        }
+
+        function toLocalInputValue(date) {
+            const pad = n => String(n).padStart(2, '0');
+            const yyyy = date.getFullYear();
+            const mm = pad(date.getMonth() + 1);
+            const dd = pad(date.getDate());
+            const hh = pad(date.getHours());
+            const min = pad(date.getMinutes());
+            return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+    <script src="../js/nav.js"></script>
+</body>
+</html>

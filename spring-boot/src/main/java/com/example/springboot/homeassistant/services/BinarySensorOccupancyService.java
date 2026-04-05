@@ -19,14 +19,18 @@ public class BinarySensorOccupancyService {
 
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final BathroomTelemetryStorageService bathroomTelemetryStorageService;
+    private final IlluminanceSensorService illuminanceSensorService;
 
-    @Async
+    @Async("telemetryExecutor")
     public void handleOccupancySensorStateChanged(HaWsStateChangedEvent<BinarySensorEntity> event) {
-        try {
-            String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
-            log.info("Handling occupancy sensor state changed event:\n{}", prettyEvent);
-        } catch (RuntimeException e) {
-            log.warn("Handling occupancy sensor state changed event (failed to pretty serialize): {}", event, e);
+        if (log.isDebugEnabled()) {
+            try {
+                String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
+                log.debug("Handling occupancy sensor state changed event:\n{}", prettyEvent);
+            } catch (RuntimeException e) {
+                log.debug("Handling occupancy sensor state changed event (failed to pretty serialize)", e);
+            }
         }
 
         if (event.event() == null || event.event().data() == null) {
@@ -48,6 +52,14 @@ public class BinarySensorOccupancyService {
         }
 
         String entityId = newState.entityId() != null ? newState.entityId() : "unknown";
+        var eventTs = HomeAssistantEventUtils.parseEventTimestamp(newState.lastUpdated(), newState.lastChanged());
+        String payloadJson = HomeAssistantEventUtils.serializeEventSilently(objectMapper, event);
+
+        if (bathroomTelemetryStorageService.isTrackedOccupancySensor(entityId)) {
+            bathroomTelemetryStorageService.storeOccupancyEvent(newIsOn, eventTs, "ha-websocket", payloadJson);
+            illuminanceSensorService.notifyContextStateChange(eventTs);
+        }
+
         String status = newIsOn ? "ON (detected)" : "OFF (clear)";
         log.info("Occupancy sensor {} changed to {}", entityId, status);
         eventPublisher.publishEvent(new OccupancyStateChangedEvent(entityId, newIsOn));

@@ -1,5 +1,6 @@
 package com.example.springboot.homeassistant.services;
 
+import java.time.Instant;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -26,6 +27,8 @@ public class LightBrightnessService {
 
     private final HomeAssistantHttpClient homeAssistantHttpClient;
     private final ObjectMapper objectMapper;
+    private final BathroomTelemetryStorageService bathroomTelemetryStorageService;
+    private final IlluminanceSensorService illuminanceSensorService;
     private static final LocalTime SEVEN_AM = LocalTime.of(7, 0);
     private static final LocalTime EIGHT_AM = LocalTime.of(8, 0);
     private static final LocalTime SIX_PM = LocalTime.of(18, 0);
@@ -101,20 +104,6 @@ public class LightBrightnessService {
             throw new IllegalArgumentException("rgbColor must contain exactly 3 values");
         }
         turnOnLight(entityId, null, rgbColor);
-    }
-
-    @Async
-    public void handleLightStateChanged(HaWsStateChangedEvent<LightEntity> event) {
-        try {
-            String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
-            log.info("Handling light state changed event:\n{}", prettyEvent);
-        } catch (RuntimeException e) {
-            log.warn("Handling light state changed event (failed to pretty serialize): {}", event, e);
-        }
-
-
-
-        // Implement logic to adjust brightness based on the new state of the light
     }
 
     private void postLightServiceAction(String action, LightServicePayload payload) {
@@ -233,5 +222,44 @@ public class LightBrightnessService {
         double brightness = high - (high - low) * normalized;
 
         return (int) Math.round(brightness);
+    }
+
+    @Async("telemetryExecutor")
+    public void handleLightStateChanged(HaWsStateChangedEvent<LightEntity> event) {
+        if (log.isDebugEnabled()) {
+            try {
+                String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
+                log.debug("Handling light state changed event:\n{}", prettyEvent);
+            } catch (RuntimeException e) {
+                log.debug("Handling light state changed event (failed to pretty serialize)", e);
+            }
+        }
+
+        if (event.event() == null || event.event().data() == null) {
+            return;
+        }
+
+        LightEntity oldState = event.event().data().oldState();
+        LightEntity newState = event.event().data().newState();
+        if (oldState == null || newState == null) {
+            return;
+        }
+
+        String entityId = newState.entityId();
+        if (entityId == null || !bathroomTelemetryStorageService.isTrackedBathroomLight(entityId)) {
+            return;
+        }
+
+        boolean oldOn = "on".equalsIgnoreCase(oldState.state());
+        boolean newOn = "on".equalsIgnoreCase(newState.state());
+        if (oldOn == newOn) {
+            return;
+        }
+
+        Instant eventTs = HomeAssistantEventUtils.parseEventTimestamp(newState.lastUpdated(), newState.lastChanged());
+        String payloadJson = HomeAssistantEventUtils.serializeEventSilently(objectMapper, event);
+
+        bathroomTelemetryStorageService.storeLightStateEvent(entityId, newOn, eventTs, "ha-websocket", payloadJson);
+        illuminanceSensorService.notifyContextStateChange(eventTs);
     }
 }

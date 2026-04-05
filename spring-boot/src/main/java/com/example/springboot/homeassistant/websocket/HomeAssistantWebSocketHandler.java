@@ -6,8 +6,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Executor;
 
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -35,16 +37,20 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
     private final AtomicInteger messageIdCounter = new AtomicInteger(0);
     private final Set<String> subscribedSessionIds = ConcurrentHashMap.newKeySet();
     private final Map<String, DomainEventRoute<?>> domainEventRoutes;
+    private final Executor homeAssistantEventExecutor;
 
     public HomeAssistantWebSocketHandler(
         HomeAssistantProperties properties,
         LightBrightnessService brightnessService,
         BinarySensorService binarySensorService,
         SensorService sensorService,
-        ObjectMapper mapper
+        ObjectMapper mapper,
+        @Qualifier("homeAssistantEventExecutor")
+        Executor homeAssistantEventExecutor
     ) {
         this.homeAssistantProperties = properties;
         this.objectMapper = mapper;
+        this.homeAssistantEventExecutor = homeAssistantEventExecutor;
         this.domainEventRoutes = Map.of(
             "light",
             new DomainEventRoute<>(
@@ -188,7 +194,13 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        route.handle(payload, objectMapper);
+        homeAssistantEventExecutor.execute(() -> {
+            try {
+                route.handle(payload, objectMapper);
+            } catch (IOException e) {
+                log.warn("Failed to process Home Assistant state_changed event asynchronously for {}", entityId, e);
+            }
+        });
 
         log.debug("Home Assistant state_changed event for {}", entityId == null ? "unknown" : entityId);
 
