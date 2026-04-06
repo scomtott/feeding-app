@@ -2,7 +2,11 @@ package com.example.springboot.homeassistant.services;
 
 import java.time.Instant;
 import java.time.LocalTime;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -13,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 import com.example.springboot.homeassistant.client.HomeAssistantHttpClient;
 import com.example.springboot.homeassistant.models.LightEntity;
+import com.example.springboot.homeassistant.models.LightEntityClassifier;
+import com.example.springboot.homeassistant.models.LightEntityClassifier.LightKind;
 import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +41,12 @@ public class LightBrightnessService {
     private static final LocalTime NINE_PM = LocalTime.of(21, 0);
     private static final double MORNING_STEEPNESS = 5.0;
     private static final double EVENING_STEEPNESS = 8.0;
+    private static final Duration MANUAL_OVERRIDE_DURATION = Duration.ofMinutes(60);
+    private static final Duration AUTOMATION_ACK_WINDOW = Duration.ofSeconds(30);
+    private static final int BRIGHTNESS_TOLERANCE = 2;
+
+    private final Map<String, PendingAutomationBrightnessUpdate> pendingAutomationBrightnessUpdates = new ConcurrentHashMap<>();
+    private final Map<String, Instant> manualBrightnessOverrideUntil = new ConcurrentHashMap<>();
 
     public List<LightEntity> getLightEntities() {
         String response = homeAssistantHttpClient.get("/api/states");
@@ -99,6 +111,31 @@ public class LightBrightnessService {
         turnOnLight(entityId, brightness);
     }
 
+    public void setBrightnessFromTimeOfDayAutomation(String entityId, int brightness) {
+        String normalizedEntityId = normalizeLightEntityId(entityId);
+        int clampedBrightness = clampBrightness(brightness);
+        pendingAutomationBrightnessUpdates.put(
+            normalizedEntityId,
+            new PendingAutomationBrightnessUpdate(clampedBrightness, Instant.now().plus(AUTOMATION_ACK_WINDOW))
+        );
+        setBrightness(normalizedEntityId, clampedBrightness);
+    }
+
+    public boolean hasActiveManualBrightnessOverride(String entityId) {
+        String normalizedEntityId = normalizeLightEntityId(entityId);
+        Instant overrideUntil = manualBrightnessOverrideUntil.get(normalizedEntityId);
+        if (overrideUntil == null) {
+            return false;
+        }
+
+        if (overrideUntil.isAfter(Instant.now())) {
+            return true;
+        }
+
+        manualBrightnessOverrideUntil.remove(normalizedEntityId, overrideUntil);
+        return false;
+    }
+
     public void setColor(String entityId, List<Integer> rgbColor) {
         if (rgbColor == null || rgbColor.size() != 3) {
             throw new IllegalArgumentException("rgbColor must contain exactly 3 values");
@@ -127,6 +164,10 @@ public class LightBrightnessService {
         return rgbColor.stream()
             .map(value -> Math.max(0, Math.min(255, value)))
             .toList();
+    }
+
+    private int clampBrightness(int brightness) {
+        return Math.max(0, Math.min(255, brightness));
     }
 
     private LightServicePayload lightServicePayload(String entityId) {
@@ -174,6 +215,92 @@ public class LightBrightnessService {
 
         @JsonProperty("white")
         public Integer getWhite() { return white; }
+    }
+
+    @Async("telemetryExecutor")
+    public void handleLightStateChanged(HaWsStateChangedEvent<LightEntity> event) {
+        if (log.isDebugEnabled()) {
+            try {
+                String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
+                log.debug("Handling light state changed event:\n{}", prettyEvent);
+            } catch (RuntimeException e) {
+                log.debug("Handling light state changed event (failed to pretty serialize)", e);
+            }
+        }
+
+        if (event.event() == null || event.event().data() == null) {
+            return;
+        }
+
+        LightEntity oldState = event.event().data().oldState();
+        LightEntity newState = event.event().data().newState();
+        if (newState == null) {
+            return;
+        }
+
+        String entityId = newState.entityId();
+        if (entityId == null) {
+            return;
+        }
+
+        Integer oldBrightness = oldState != null && oldState.attributes() != null ? oldState.attributes().brightness() : null;
+        Integer newBrightness = newState.attributes() != null ? newState.attributes().brightness() : null;
+
+        boolean oldOn = oldState != null && "on".equalsIgnoreCase(oldState.state());
+        boolean newOn = "on".equalsIgnoreCase(newState.state());
+
+        if (!oldOn && newOn) {
+            applyTimeOfDayBrightnessOnTurnOn(newState);
+        }
+
+        if (oldOn && newOn && newBrightness != null && !Objects.equals(oldBrightness, newBrightness)) {
+            trackManualBrightnessOverride(entityId, newBrightness);
+        }
+
+        if (oldState == null || !bathroomTelemetryStorageService.isTrackedBathroomLight(entityId)) {
+            return;
+        }
+
+        if (oldOn == newOn) {
+            return;
+        }
+
+        Instant eventTs = HomeAssistantEventUtils.parseEventTimestamp(newState.lastUpdated(), newState.lastChanged());
+        String payloadJson = HomeAssistantEventUtils.serializeEventSilently(objectMapper, event);
+
+        bathroomTelemetryStorageService.storeLightStateEvent(entityId, newOn, eventTs, "ha-websocket", payloadJson);
+        illuminanceSensorService.notifyContextStateChange(eventTs);
+    }
+
+    private void applyTimeOfDayBrightnessOnTurnOn(LightEntity lightEntity) {
+        String entityId = lightEntity.entityId();
+        if (entityId == null) {
+            return;
+        }
+
+        String normalizedEntityId = normalizeLightEntityId(entityId);
+        if (BrightnessAutomationExclusionRegistry.isExcluded(normalizedEntityId)) {
+            return;
+        }
+
+        if (LightEntityClassifier.classify(lightEntity) != LightKind.DIMMABLE_OR_COLOR) {
+            return;
+        }
+
+        if (hasActiveManualBrightnessOverride(normalizedEntityId)) {
+            return;
+        }
+
+        int targetBrightness = setBrightnessForTimeOfDay(
+            TimeOfDayBrightnessPolicy.MIN_BRIGHTNESS,
+            TimeOfDayBrightnessPolicy.MAX_BRIGHTNESS
+        );
+        Integer currentBrightness = lightEntity.attributes() != null ? lightEntity.attributes().brightness() : null;
+        if (currentBrightness != null && Math.abs(currentBrightness - targetBrightness) <= BRIGHTNESS_TOLERANCE) {
+            return;
+        }
+
+        setBrightnessFromTimeOfDayAutomation(normalizedEntityId, targetBrightness);
     }
 
     private int setBrightnessForTimeOfDay(int minBrightness, int maxBrightness) {
@@ -224,42 +351,36 @@ public class LightBrightnessService {
         return (int) Math.round(brightness);
     }
 
-    @Async("telemetryExecutor")
-    public void handleLightStateChanged(HaWsStateChangedEvent<LightEntity> event) {
-        if (log.isDebugEnabled()) {
-            try {
-                String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
-                log.debug("Handling light state changed event:\n{}", prettyEvent);
-            } catch (RuntimeException e) {
-                log.debug("Handling light state changed event (failed to pretty serialize)", e);
+    private void trackManualBrightnessOverride(String entityId, int observedBrightness) {
+        String normalizedEntityId = normalizeLightEntityId(entityId);
+
+        if (BrightnessAutomationExclusionRegistry.isExcluded(normalizedEntityId)) {
+            pendingAutomationBrightnessUpdates.remove(normalizedEntityId);
+            manualBrightnessOverrideUntil.remove(normalizedEntityId);
+            return;
+        }
+
+        int clampedObservedBrightness = clampBrightness(observedBrightness);
+        Instant now = Instant.now();
+
+        PendingAutomationBrightnessUpdate pendingUpdate = pendingAutomationBrightnessUpdates.get(normalizedEntityId);
+        if (pendingUpdate != null) {
+            if (!pendingUpdate.expiresAt().isBefore(now)
+                && Math.abs(pendingUpdate.brightness() - clampedObservedBrightness) <= BRIGHTNESS_TOLERANCE) {
+                pendingAutomationBrightnessUpdates.remove(normalizedEntityId, pendingUpdate);
+                return;
+            }
+
+            if (pendingUpdate.expiresAt().isBefore(now)) {
+                pendingAutomationBrightnessUpdates.remove(normalizedEntityId, pendingUpdate);
             }
         }
 
-        if (event.event() == null || event.event().data() == null) {
-            return;
-        }
+        Instant overrideUntil = now.plus(MANUAL_OVERRIDE_DURATION);
+        manualBrightnessOverrideUntil.put(normalizedEntityId, overrideUntil);
+        log.info("Registered manual brightness override for {} until {}", normalizedEntityId, overrideUntil);
+    }
 
-        LightEntity oldState = event.event().data().oldState();
-        LightEntity newState = event.event().data().newState();
-        if (oldState == null || newState == null) {
-            return;
-        }
-
-        String entityId = newState.entityId();
-        if (entityId == null || !bathroomTelemetryStorageService.isTrackedBathroomLight(entityId)) {
-            return;
-        }
-
-        boolean oldOn = "on".equalsIgnoreCase(oldState.state());
-        boolean newOn = "on".equalsIgnoreCase(newState.state());
-        if (oldOn == newOn) {
-            return;
-        }
-
-        Instant eventTs = HomeAssistantEventUtils.parseEventTimestamp(newState.lastUpdated(), newState.lastChanged());
-        String payloadJson = HomeAssistantEventUtils.serializeEventSilently(objectMapper, event);
-
-        bathroomTelemetryStorageService.storeLightStateEvent(entityId, newOn, eventTs, "ha-websocket", payloadJson);
-        illuminanceSensorService.notifyContextStateChange(eventTs);
+    private record PendingAutomationBrightnessUpdate(int brightness, Instant expiresAt) {
     }
 }

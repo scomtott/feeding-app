@@ -19,11 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class LogOnLightsJobScheduler {
+public class TimeOfDayBrightnessJobScheduler {
 
-    private static final String GROUP = "homeassistant-monitoring";
-    private static final JobKey JOB_KEY = JobKey.jobKey("log-on-lights", GROUP);
-    private static final TriggerKey TRIGGER_KEY = TriggerKey.triggerKey("log-on-lights-trigger", GROUP);
+    private static final String GROUP = "homeassistant-automation";
+    private static final JobKey JOB_KEY = JobKey.jobKey("time-of-day-brightness", GROUP);
+    private static final TriggerKey TRIGGER_KEY = TriggerKey.triggerKey("time-of-day-brightness-trigger", GROUP);
 
     private final Scheduler scheduler;
 
@@ -35,7 +35,7 @@ public class LogOnLightsJobScheduler {
                 return;
             }
 
-            JobDetail jobDetail = JobBuilder.newJob(LogOnLightsJob.class)
+            JobDetail jobDetail = JobBuilder.newJob(TimeOfDayBrightnessJob.class)
                 .withIdentity(JOB_KEY)
                 .build();
 
@@ -44,14 +44,14 @@ public class LogOnLightsJobScheduler {
                 .forJob(JOB_KEY)
                 .startNow()
                 .withSchedule(SimpleScheduleBuilder.simpleSchedule()
-                    .withIntervalInSeconds(10)
+                    .withIntervalInSeconds(30)
                     .repeatForever())
                 .build();
 
             scheduler.scheduleJob(jobDetail, trigger);
-            log.info("Scheduled Quartz job {} to run every 10 seconds.", JOB_KEY);
+            log.info("Scheduled Quartz job {} to run every 30 seconds.", JOB_KEY);
         } catch (SchedulerException e) {
-            throw new IllegalStateException("Failed to schedule 10-second on-lights job", e);
+            throw new IllegalStateException("Failed to schedule time-of-day brightness job", e);
         }
     }
 }
