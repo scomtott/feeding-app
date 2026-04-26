@@ -1,11 +1,11 @@
 package com.example.springboot.homeassistant.services;
 
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -35,12 +35,6 @@ public class LightBrightnessService {
     private final ObjectMapper objectMapper;
     private final BathroomTelemetryStorageService bathroomTelemetryStorageService;
     private final IlluminanceSensorService illuminanceSensorService;
-    private static final LocalTime SEVEN_AM = LocalTime.of(7, 0);
-    private static final LocalTime EIGHT_AM = LocalTime.of(8, 0);
-    private static final LocalTime SIX_PM = LocalTime.of(18, 0);
-    private static final LocalTime NINE_PM = LocalTime.of(21, 0);
-    private static final double MORNING_STEEPNESS = 5.0;
-    private static final double EVENING_STEEPNESS = 8.0;
     private static final Duration MANUAL_OVERRIDE_DURATION = Duration.ofMinutes(60);
     private static final Duration AUTOMATION_ACK_WINDOW = Duration.ofSeconds(30);
     private static final int BRIGHTNESS_TOLERANCE = 2;
@@ -122,18 +116,39 @@ public class LightBrightnessService {
     }
 
     public boolean hasActiveManualBrightnessOverride(String entityId) {
+        return getManualBrightnessOverrideUntil(entityId) != null;
+    }
+
+    public Instant getManualBrightnessOverrideUntil(String entityId) {
         String normalizedEntityId = normalizeLightEntityId(entityId);
         Instant overrideUntil = manualBrightnessOverrideUntil.get(normalizedEntityId);
         if (overrideUntil == null) {
-            return false;
+            return null;
         }
 
         if (overrideUntil.isAfter(Instant.now())) {
-            return true;
+            return overrideUntil;
         }
 
         manualBrightnessOverrideUntil.remove(normalizedEntityId, overrideUntil);
-        return false;
+        return null;
+    }
+
+    public Map<String, Instant> getActiveManualBrightnessOverrides() {
+        Map<String, Instant> activeOverrides = new HashMap<>();
+        for (String entityId : manualBrightnessOverrideUntil.keySet()) {
+            Instant overrideUntil = getManualBrightnessOverrideUntil(entityId);
+            if (overrideUntil != null) {
+                activeOverrides.put(entityId, overrideUntil);
+            }
+        }
+        return activeOverrides;
+    }
+
+    public boolean clearManualBrightnessOverride(String entityId) {
+        String normalizedEntityId = normalizeLightEntityId(entityId);
+        pendingAutomationBrightnessUpdates.remove(normalizedEntityId);
+        return manualBrightnessOverrideUntil.remove(normalizedEntityId) != null;
     }
 
     public void setColor(String entityId, List<Integer> rgbColor) {
@@ -291,7 +306,7 @@ public class LightBrightnessService {
             return;
         }
 
-        int targetBrightness = setBrightnessForTimeOfDay(
+        int targetBrightness = TimeOfDayBrightnessScheduleService.setBrightnessForTimeOfDay(
             TimeOfDayBrightnessPolicy.MIN_BRIGHTNESS,
             TimeOfDayBrightnessPolicy.MAX_BRIGHTNESS
         );
@@ -301,54 +316,6 @@ public class LightBrightnessService {
         }
 
         setBrightnessFromTimeOfDayAutomation(normalizedEntityId, targetBrightness);
-    }
-
-    private int setBrightnessForTimeOfDay(int minBrightness, int maxBrightness) {
-        LocalTime now = LocalTime.now();
-        int low = minBrightness;
-        int high = maxBrightness;
-
-        if (now.isBefore(SEVEN_AM)) {
-            return low;
-        }
-
-        if (now.isBefore(EIGHT_AM)) {
-            int startSecond = SEVEN_AM.toSecondOfDay();
-            int endSecond = EIGHT_AM.toSecondOfDay();
-            int nowSecond = now.toSecondOfDay();
-
-            double progress = (double) (nowSecond - startSecond) / (endSecond - startSecond);
-            double sigmoidAtStart = 1.0 / (1.0 + Math.exp(-MORNING_STEEPNESS * (0.0 - 0.5)));
-            double sigmoidAtEnd = 1.0 / (1.0 + Math.exp(-MORNING_STEEPNESS * (1.0 - 0.5)));
-            double sigmoidNow = 1.0 / (1.0 + Math.exp(-MORNING_STEEPNESS * (progress - 0.5)));
-
-            double normalized = (sigmoidNow - sigmoidAtStart) / (sigmoidAtEnd - sigmoidAtStart);
-            double brightness = low + (high - low) * normalized;
-            return (int) Math.round(brightness);
-        }
-
-        if (now.isBefore(SIX_PM)) {
-            return high;
-        }
-
-        if (!now.isBefore(NINE_PM)) {
-            return low;
-        }
-
-        int startSecond = SIX_PM.toSecondOfDay();
-        int endSecond = NINE_PM.toSecondOfDay();
-        int nowSecond = now.toSecondOfDay();
-
-        double progress = (double) (nowSecond - startSecond) / (endSecond - startSecond);
-
-        double sigmoidAtStart = 1.0 / (1.0 + Math.exp(-EVENING_STEEPNESS * (0.0 - 0.5)));
-        double sigmoidAtEnd = 1.0 / (1.0 + Math.exp(-EVENING_STEEPNESS * (1.0 - 0.5)));
-        double sigmoidNow = 1.0 / (1.0 + Math.exp(-EVENING_STEEPNESS * (progress - 0.5)));
-
-        double normalized = (sigmoidNow - sigmoidAtStart) / (sigmoidAtEnd - sigmoidAtStart);
-        double brightness = high - (high - low) * normalized;
-
-        return (int) Math.round(brightness);
     }
 
     private void trackManualBrightnessOverride(String entityId, int observedBrightness) {

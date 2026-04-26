@@ -2,6 +2,7 @@ package com.example.springboot.homeassistant.services;
 
 import java.time.Instant;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,9 @@ public class BathroomTelemetryStorageService {
     private static final String ENTITY_BATHROOM_OCCUPANCY = "binary_sensor.bathroom_motion_sensor_occupancy";
     private static final String ENTITY_BATHROOM_ILLUMINANCE = "sensor.bathroom_motion_sensor_illuminance";
 
+    @Value("${homeassistant.telemetry.database-logging-enabled:true}")
+    private boolean databaseLoggingEnabled;
+
     private final BathroomTelemetryEventRepository bathroomTelemetryEventRepository;
     private final BathroomTimelinePointRepository bathroomTimelinePointRepository;
 
@@ -30,7 +34,7 @@ public class BathroomTelemetryStorageService {
     public BathroomTelemetryEvent storeLightStateEvent(String entityId, boolean isOn, Instant tsUtc, String source, String payloadJson) {
         Instant ts = normalizeTs(tsUtc);
 
-        BathroomTelemetryEvent stored = bathroomTelemetryEventRepository.save(new BathroomTelemetryEvent(
+        BathroomTelemetryEvent event = new BathroomTelemetryEvent(
             ts,
             entityId,
             SignalType.LIGHT_STATE,
@@ -39,7 +43,13 @@ public class BathroomTelemetryStorageService {
             isOn ? "on" : "off",
             source,
             payloadJson
-        ));
+        );
+
+        if (!databaseLoggingEnabled) {
+            return event;
+        }
+
+        BathroomTelemetryEvent stored = bathroomTelemetryEventRepository.save(event);
 
         appendTimelinePoint(ts, null, null, entityId, isOn);
         return stored;
@@ -49,7 +59,7 @@ public class BathroomTelemetryStorageService {
     public BathroomTelemetryEvent storeOccupancyEvent(boolean occupied, Instant tsUtc, String source, String payloadJson) {
         Instant ts = normalizeTs(tsUtc);
 
-        BathroomTelemetryEvent stored = bathroomTelemetryEventRepository.save(new BathroomTelemetryEvent(
+        BathroomTelemetryEvent event = new BathroomTelemetryEvent(
             ts,
             ENTITY_BATHROOM_OCCUPANCY,
             SignalType.OCCUPANCY_STATE,
@@ -58,7 +68,13 @@ public class BathroomTelemetryStorageService {
             occupied ? "on" : "off",
             source,
             payloadJson
-        ));
+        );
+
+        if (!databaseLoggingEnabled) {
+            return event;
+        }
+
+        BathroomTelemetryEvent stored = bathroomTelemetryEventRepository.save(event);
 
         appendTimelinePoint(ts, occupied, null, null, null);
         return stored;
@@ -68,7 +84,7 @@ public class BathroomTelemetryStorageService {
     public BathroomTelemetryEvent storeIlluminanceEvent(double illuminanceLux, Instant tsUtc, String source, String payloadJson) {
         Instant ts = normalizeTs(tsUtc);
 
-        BathroomTelemetryEvent stored = bathroomTelemetryEventRepository.save(new BathroomTelemetryEvent(
+        BathroomTelemetryEvent event = new BathroomTelemetryEvent(
             ts,
             ENTITY_BATHROOM_ILLUMINANCE,
             SignalType.ILLUMINANCE,
@@ -77,7 +93,13 @@ public class BathroomTelemetryStorageService {
             Double.toString(illuminanceLux),
             source,
             payloadJson
-        ));
+        );
+
+        if (!databaseLoggingEnabled) {
+            return event;
+        }
+
+        BathroomTelemetryEvent stored = bathroomTelemetryEventRepository.save(event);
 
         appendTimelinePoint(ts, null, illuminanceLux, null, null);
         return stored;
@@ -100,6 +122,11 @@ public class BathroomTelemetryStorageService {
             bathroom2On,
             gledoptoOn
         );
+
+        if (!databaseLoggingEnabled) {
+            return point;
+        }
+
         return bathroomTimelinePointRepository.save(point);
     }
 
@@ -128,6 +155,10 @@ public class BathroomTelemetryStorageService {
         String lightEntityId,
         Boolean lightState
     ) {
+        if (!databaseLoggingEnabled) {
+            return;
+        }
+
         BathroomTimelinePoint latest = bathroomTimelinePointRepository.findTopByOrderByTsUtcDesc();
 
         Boolean nextOccupancy = occupancy != null

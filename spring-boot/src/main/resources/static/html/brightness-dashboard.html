@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brightness Dashboard</title>
+    <link rel="stylesheet" href="../css/brightness-dashboard.css">
+    <script src="../js/logger.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <header class="page-header">
+            <h1>Daily Brightness Dashboard</h1>
+            <button id="reloadButton" type="button">Refresh</button>
+        </header>
+
+        <section class="panel current-panel">
+            <h2>Current Schedule Position</h2>
+            <div id="currentSchedule" class="current-grid">
+                <div class="skeleton">Loading current schedule...</div>
+            </div>
+            <div class="progress-wrap">
+                <div id="phaseProgressBar" class="progress-bar"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Brightness Curve</h2>
+            <div class="graph-wrap">
+                <svg id="scheduleGraph" viewBox="0 0 1000 280" preserveAspectRatio="none" role="img" aria-label="Daily brightness schedule graph">
+                    <rect x="0" y="0" width="1000" height="280" class="graph-bg"></rect>
+                    <g id="scheduleGrid"></g>
+                    <polyline id="scheduleLine" class="schedule-line" points=""></polyline>
+                    <circle id="currentPoint" class="current-point" cx="0" cy="0" r="0"></circle>
+                </svg>
+            </div>
+            <div id="graphLegend" class="graph-legend muted">Loading graph...</div>
+        </section>
+
+        <section class="panel">
+            <h2>Daily Schedule</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Target Brightness</th>
+                    </tr>
+                </thead>
+                <tbody id="scheduleTableBody">
+                    <tr><td colspan="3" class="muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <h2>Manual Override Leases</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Entity ID</th>
+                        <th>Lease Ends</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="overrideTableBody">
+                    <tr><td colspan="4" class="muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <h2>All Light Statuses</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Entity ID</th>
+                        <th>State</th>
+                        <th>Brightness</th>
+                        <th>Kind</th>
+                        <th>Excluded</th>
+                        <th>Manual Override</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="lightsTableBody">
+                    <tr><td colspan="8" class="muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <p id="statusMessage" class="status-message"></p>
+    </div>
+
+    <script src="../js/brightness-dashboard.js"></script>
+    <script src="../js/nav.js"></script>
+</body>
+</html>
