@@ -1,10 +1,13 @@
 package com.example.springboot.utilities;
 
 import java.util.List;
+
 import com.example.springboot.models.Point;
 
-public class CentileParametersData {
-    private CentileParametersData() {
+public final class WeightCentileParametersData implements CentileLmsDataProvider {
+    public static final WeightCentileParametersData INSTANCE = new WeightCentileParametersData();
+
+    private WeightCentileParametersData() {
     }
 
     // x values in weeks
@@ -165,4 +168,34 @@ public class CentileParametersData {
         new Point(0.916666667, 0.12247),
         new Point(1, 0.12268)
     );
+
+    @Override
+    public List<Point> pre43WeeksLValues() {
+        return PRE_43_WEEKS_L_VALUES;
+    }
+
+    @Override
+    public List<Point> pre43WeeksMValues() {
+        return PRE_43_WEEKS_M_VALUES;
+    }
+
+    @Override
+    public List<Point> pre43WeeksSValues() {
+        return PRE_43_WEEKS_S_VALUES;
+    }
+
+    @Override
+    public List<Point> weeks43To1YearLValues() {
+        return WEEKS_43_TO_1_YEAR_L_VALUES;
+    }
+
+    @Override
+    public List<Point> weeks43To1YearMValues() {
+        return WEEKS_43_TO_1_YEAR_M_VALUES;
+    }
+
+    @Override
+    public List<Point> weeks43To1YearSValues() {
+        return WEEKS_43_TO_1_YEAR_S_VALUES;
+    }
 }

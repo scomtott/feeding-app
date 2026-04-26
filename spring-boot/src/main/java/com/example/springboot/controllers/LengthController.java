@@ -13,60 +13,56 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.springboot.models.Centile;
-import com.example.springboot.models.WeightEntry;
-import com.example.springboot.services.WeightService;
+import com.example.springboot.models.LengthCentile;
+import com.example.springboot.models.LengthEntry;
+import com.example.springboot.services.LengthService;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("/api/weight")
+@RequestMapping("/api/length")
 @RequiredArgsConstructor
-@Slf4j
-public class WeightController {
+public class LengthController {
 
-    private final WeightService weightService;
+    private final LengthService lengthService;
 
     @GetMapping("/entries")
-    public List<WeightEntry> getEntries(@RequestParam(required = false) LocalDate date, @RequestParam(required = false) Sort.Direction direction) {
+    public List<LengthEntry> getEntries(
+        @RequestParam(required = false) LocalDate date,
+        @RequestParam(required = false) Sort.Direction direction
+    ) {
         if (direction == null) {
             direction = Sort.Direction.ASC;
         }
-        
+
         if (date == null) {
-            return weightService.getAllEntries(direction);
+            return lengthService.getAllEntries(direction);
         }
-        return weightService.getEntriesByDate(date, direction);
+        return lengthService.getEntriesByDate(date, direction);
     }
 
     @GetMapping("/centiles")
-    public List<Centile> getCentiles() {
-        return weightService.calculateCentiles();
-    }
-
-    @GetMapping("/centiles/predict")
-    public List<Centile> getCentilesWithPrediction(@RequestParam int daysToPredict) {
-        return weightService.predictWeightTrend(daysToPredict);
+    public List<LengthCentile> getCentiles() {
+        return lengthService.calculateCentiles();
     }
 
     @PostMapping("/entries")
-    public WeightEntry save(@RequestBody WeightEntry entry) {
-        return weightService.saveEntry(entry);
+    public LengthEntry save(@RequestBody LengthEntry entry) {
+        return lengthService.saveEntry(entry);
     }
 
     @PostMapping("/entries/batch")
-    public List<WeightEntry> batchSave(@RequestBody List<WeightEntry> entries) {
-        return weightService.saveAllEntries(entries);
+    public List<LengthEntry> batchSave(@RequestBody List<LengthEntry> entries) {
+        return lengthService.saveAllEntries(entries);
     }
 
     @DeleteMapping("/entries/{id}")
     public void deleteEntry(@PathVariable Long id) {
-        weightService.deleteEntry(id);
+        lengthService.deleteEntry(id);
     }
 
     @DeleteMapping("/entries/batch")
     public void batchDelete(@RequestBody List<Long> ids) {
-        weightService.batchDelete(ids);
+        lengthService.batchDelete(ids);
     }
 }

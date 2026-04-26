@@ -1,14 +1,11 @@
 package com.example.springboot.utilities;
 
+import java.time.LocalDate;
+import java.util.List;
+
 import org.slf4j.Logger;
 
-import java.time.LocalDate;
-
-import com.example.springboot.models.WeightEntry;
-import com.example.springboot.models.Centile;
 import com.example.springboot.models.Point;
-
-import java.util.List;
 
 public class NormalDistributionUtility {
     private static final LocalDate DATE_OF_39_WEEKS_GESTATION = LocalDate.of(2026, 1, 12);
@@ -22,16 +19,23 @@ public class NormalDistributionUtility {
         return 0.5 * (a + b) * height;
     }
 
-    public static Centile calculateCentile(WeightEntry weight, Logger log) {
+    public static double calculateCentileValue(
+        double measurementValue,
+        LocalDate measurementDate,
+        CentileLmsDataProvider lmsDataProvider,
+        String measurementName,
+        double normalisationDivisor,
+        Logger log
+    ) {
         double zScore;
-        if (dateToWeeksGestation(weight.getDate()) < 43.0) {
-            log.info("Calculating z-score for weight entry before 43 weeks gestation");
-            double gestationInWeeks = dateToWeeksGestation(weight.getDate());
-            zScore = calculateZBefore43Weeks(weight.getWeightInGrams(), gestationInWeeks, log);
+        if (dateToWeeksGestation(measurementDate) < 43.0) {
+            log.info("Calculating z-score for {} entry before 43 weeks gestation", measurementName);
+            double gestationInWeeks = dateToWeeksGestation(measurementDate);
+            zScore = calculateZBefore43Weeks(measurementValue, gestationInWeeks, lmsDataProvider, normalisationDivisor, log);
         } else {
-            log.info("Calculating z-score for weight entry after 43 weeks gestation");
-            double ageInYears = dateToYearsOld(weight.getDate());
-            zScore = calculateZAfter43Weeks(weight.getWeightInGrams(), ageInYears, log);
+            log.info("Calculating z-score for {} entry after 43 weeks gestation", measurementName);
+            double ageInYears = dateToYearsOld(measurementDate);
+            zScore = calculateZAfter43Weeks(measurementValue, ageInYears, lmsDataProvider, normalisationDivisor, log);
         }
         
         double totalArea = 0.0;
@@ -57,53 +61,65 @@ public class NormalDistributionUtility {
         double y2 = calculateStandardNormalDistribution(zScore);
         totalArea += calculateTrapeziumArea(y1, y2, zScore - lastStep);
 
-        log.info("Calculated centile for date {} and weight {}g: zScore = {}, centile = {}",
-                weight.getDate(), weight.getWeightInGrams(), zScore, totalArea*100);
-        return new Centile(weight.getDate(), weight.getWeightInGrams(), totalArea*100);
+        log.info("Calculated centile for date {} and {} {}: zScore = {}, centile = {}",
+                measurementDate, measurementName, measurementValue, zScore, totalArea * 100);
+        return totalArea * 100;
     }
 
-    private static double calculateLBefore43Weeks(double gestationInWeeks) {
-        return linearInterpolateToFindDependantVariable(CentileParametersData.PRE_43_WEEKS_L_VALUES, gestationInWeeks);
+    private static double calculateLBefore43Weeks(double gestationInWeeks, CentileLmsDataProvider lmsDataProvider) {
+        return linearInterpolateToFindDependantVariable(lmsDataProvider.pre43WeeksLValues(), gestationInWeeks);
     }
 
-    private static double calculateMBefore43Weeks(double gestationInWeeks) {
-        return linearInterpolateToFindDependantVariable(CentileParametersData.PRE_43_WEEKS_M_VALUES, gestationInWeeks);
+    private static double calculateMBefore43Weeks(double gestationInWeeks, CentileLmsDataProvider lmsDataProvider) {
+        return linearInterpolateToFindDependantVariable(lmsDataProvider.pre43WeeksMValues(), gestationInWeeks);
     }
 
-    private static double calculateSBefore43Weeks(double gestationInWeeks) {
-        return linearInterpolateToFindDependantVariable(CentileParametersData.PRE_43_WEEKS_S_VALUES, gestationInWeeks);
+    private static double calculateSBefore43Weeks(double gestationInWeeks, CentileLmsDataProvider lmsDataProvider) {
+        return linearInterpolateToFindDependantVariable(lmsDataProvider.pre43WeeksSValues(), gestationInWeeks);
     }
 
-    private static double calculateZBefore43Weeks(int weightInGrams, double gestationInWeeks, Logger log) {
-        double l = calculateLBefore43Weeks(gestationInWeeks);
-        double m = calculateMBefore43Weeks(gestationInWeeks);
-        double s = calculateSBefore43Weeks(gestationInWeeks);
+    private static double calculateZBefore43Weeks(
+        double measurementValue,
+        double gestationInWeeks,
+        CentileLmsDataProvider lmsDataProvider,
+        double normalisationDivisor,
+        Logger log
+    ) {
+        double l = calculateLBefore43Weeks(gestationInWeeks, lmsDataProvider);
+        double m = calculateMBefore43Weeks(gestationInWeeks, lmsDataProvider);
+        double s = calculateSBefore43Weeks(gestationInWeeks, lmsDataProvider);
         log.info("L: {}, M: {}, S: {}", l, m, s);
-        return calculateZ(weightInGrams, l, m, s);
+        return calculateZ(measurementValue, l, m, s, normalisationDivisor);
     }
 
-    private static double calculateLAfter43Weeks(double ageInYears) {
-        return linearInterpolateToFindDependantVariable(CentileParametersData.WEEKS_43_TO_1_YEAR_L_VALUES, ageInYears);
+    private static double calculateLAfter43Weeks(double ageInYears, CentileLmsDataProvider lmsDataProvider) {
+        return linearInterpolateToFindDependantVariable(lmsDataProvider.weeks43To1YearLValues(), ageInYears);
     }
 
-    private static double calculateMAfter43Weeks(double ageInYears) {
-        return linearInterpolateToFindDependantVariable(CentileParametersData.WEEKS_43_TO_1_YEAR_M_VALUES, ageInYears);
+    private static double calculateMAfter43Weeks(double ageInYears, CentileLmsDataProvider lmsDataProvider) {
+        return linearInterpolateToFindDependantVariable(lmsDataProvider.weeks43To1YearMValues(), ageInYears);
     }
 
-    private static double calculateSAfter43Weeks(double ageInYears) {
-        return linearInterpolateToFindDependantVariable(CentileParametersData.WEEKS_43_TO_1_YEAR_S_VALUES, ageInYears);
+    private static double calculateSAfter43Weeks(double ageInYears, CentileLmsDataProvider lmsDataProvider) {
+        return linearInterpolateToFindDependantVariable(lmsDataProvider.weeks43To1YearSValues(), ageInYears);
     }
 
-    private static double calculateZAfter43Weeks(int weightInGrams, double ageInYears, Logger log) {
-        double l = calculateLAfter43Weeks(ageInYears);
-        double m = calculateMAfter43Weeks(ageInYears);
-        double s = calculateSAfter43Weeks(ageInYears);
+    private static double calculateZAfter43Weeks(
+        double measurementValue,
+        double ageInYears,
+        CentileLmsDataProvider lmsDataProvider,
+        double normalisationDivisor,
+        Logger log
+    ) {
+        double l = calculateLAfter43Weeks(ageInYears, lmsDataProvider);
+        double m = calculateMAfter43Weeks(ageInYears, lmsDataProvider);
+        double s = calculateSAfter43Weeks(ageInYears, lmsDataProvider);
         log.info("L: {}, M: {}, S: {}", l, m, s);
-        return calculateZ(weightInGrams, l, m, s);
+        return calculateZ(measurementValue, l, m, s, normalisationDivisor);
     }
 
-    private static double calculateZ(int weightInGrams, double l, double m, double s) {
-        return (Math.pow(((weightInGrams/1000.0) / m), l) - 1) / (l * s);
+    private static double calculateZ(double measurementValue, double l, double m, double s, double normalisationDivisor) {
+        return (Math.pow(((measurementValue / normalisationDivisor) / m), l) - 1) / (l * s);
     }
 
     private static double dateToWeeksGestation(LocalDate measurementDate) {
@@ -117,6 +133,10 @@ public class NormalDistributionUtility {
     }
 
     private static double linearInterpolateToFindDependantVariable(List<Point> points, double targetX) {
+        if (points == null || points.size() < 2) {
+            throw new IllegalStateException("LMS data must contain at least two points for interpolation.");
+        }
+
         List<Point> adjacentPoints = binarySearchToFindAdjacentPoints(points, targetX);
         Point point1 = adjacentPoints.get(0);
         Point point2 = adjacentPoints.get(1);

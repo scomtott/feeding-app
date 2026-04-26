@@ -17,7 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
             { href: 'feeding.html', label: 'Feeding' },
             { href: 'pumping.html', label: 'Pumping' },
             { href: 'weight-tracker.html', label: 'Weight Tracker' },
+            { href: 'length-tracker.html', label: 'Length Tracker' },
             { href: 'home-assistant.html', label: 'Home Assistant' },
+            { href: 'brightness-dashboard.html', label: 'Brightness Dashboard' },
             { href: 'bathroom-telemetry.html', label: 'Bathroom Telemetry' }
         ];
 

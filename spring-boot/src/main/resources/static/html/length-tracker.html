@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Length Tracker</title>
+    <link rel="stylesheet" href="../css/length-tracker.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+        
+        <h1>Length Tracker</h1>
+
+        <div class="form-section">
+            <h2>Add Length Entry</h2>
+            <form id="length-form">
+                <div class="form-group">
+                    <label for="entry-date">Date:</label>
+                    <input type="date" id="entry-date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="entry-length">Length (cm):</label>
+                    <input type="number" id="entry-length" min="10" max="200" step="0.1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="entry-location">Measurement Location:</label>
+                    <select id="entry-location" required>
+                        <option value="">-- Select Location --</option>
+                        <option value="HOME">Home</option>
+                        <option value="WEIGHING_CLINIC">Weighing Clinic</option>
+                        <option value="HOSPITAL">Hospital</option>
+                        <option value="GP">GP</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-submit">Add Entry</button>
+                <span id="form-message" class="form-message"></span>
+            </form>
+        </div>
+
+        <div class="chart-section">
+            <h2>Length Progress & Centiles</h2>
+            <form id="predict-form" class="predict-form">
+                <div class="form-group">
+                    <label for="predict-days">Number of days to predict:</label>
+                    <input type="number" id="predict-days" min="1" max="365" required>
+                </div>
+                <button type="submit" class="btn-submit">Predict</button>
+                <button type="button" class="btn-secondary" id="clear-predictions" disabled>Clear Predictions</button>
+                <span id="predict-message" class="form-message"></span>
+            </form>
+            <div id="content" class="chart-container"></div>
+        </div>
+
+        <div class="entries-section">
+            <h2>Recent Entries</h2>
+            <div class="entries-controls">
+                <label>
+                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"> Select All
+                </label>
+                <span id="selectedCount" class="selected-count"></span>
+                <button type="button" class="btn-delete" id="deleteButton" onclick="deleteSelectedEntries()" disabled>Delete Selected</button>
+            </div>
+            <table id="entries-table" class="entries-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;"></th>
+                        <th>Date</th>
+                        <th>Length (cm)</th>
+                        <th>Location</th>
+                        <th>Centile (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="entries-tbody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="../js/chart-utils.js"></script>
+    <script src="../js/logger.js"></script>
+    <script src="../js/nav.js"></script>
+    <script>
+        let chart = null;
+        let predictedCentiles = [];
+        let cachedEntries = [];
+        let cachedCentiles = [];
+        const locationMap = {
+            'HOME': 'Home',
+            'WEIGHING_CLINIC': 'Weighing Clinic',
+            'HOSPITAL': 'Hospital',
+            'GP': 'GP'
+        };
+
+        // Set today's date as default
+        document.getElementById('entry-date').valueAsDate = new Date();
+
+        // Handle form submission
+        document.getElementById('length-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const date = document.getElementById('entry-date').value;
+            const length = parseFloat(document.getElementById('entry-length').value);
+            const location = document.getElementById('entry-location').value;
+            const messageSpan = document.getElementById('form-message');
+
+            try {
+                appLogger.info('Submitting length entry', { date, length, location });
+                
+                const response = await fetch('/api/length/entries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, lengthInCentimetres: length, location })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                appLogger.info('Length entry saved successfully');
+                messageSpan.textContent = 'Entry added successfully!';
+                messageSpan.style.color = '#4CAF50';
+                
+                document.getElementById('length-form').reset();
+                document.getElementById('entry-date').valueAsDate = new Date();
+                
+                setTimeout(() => {
+                    messageSpan.textContent = '';
+                }, 3000);
+
+                // Reload data
+                await loadLengthData();
+            } catch (error) {
+                appLogger.error('Failed to save length entry', { error: error.message });
+                messageSpan.textContent = 'Error: ' + error.message;
+                messageSpan.style.color = '#f44336';
+            }
+        });
+
+        document.getElementById('predict-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const daysInput = document.getElementById('predict-days');
+            const messageSpan = document.getElementById('predict-message');
+            const daysToPredict = parseInt(daysInput.value, 10);
+
+            if (!Number.isFinite(daysToPredict) || daysToPredict < 1) {
+                messageSpan.textContent = 'Enter a valid number of days.';
+                messageSpan.style.color = '#f44336';
+                return;
+            }
+
+            try {
+                appLogger.info('Requesting length prediction', { daysToPredict });
+
+                const response = await fetch(`/api/length/centiles/predict?daysToPredict=${daysToPredict}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                predictedCentiles = await response.json();
+                messageSpan.textContent = `Predicted ${daysToPredict} day(s).`;
+                messageSpan.style.color = '#4CAF50';
+                document.getElementById('clear-predictions').disabled = false;
+
+                displayLengthChart(cachedEntries, cachedCentiles, predictedCentiles);
+            } catch (error) {
+                appLogger.error('Failed to load predictions', { error: error.message });
+                messageSpan.textContent = 'Error: ' + error.message;
+                messageSpan.style.color = '#f44336';
+            }
+        });
+
+        document.getElementById('clear-predictions').addEventListener('click', () => {
+            predictedCentiles = [];
+            document.getElementById('clear-predictions').disabled = true;
+            document.getElementById('predict-message').textContent = '';
+            displayLengthChart(cachedEntries, cachedCentiles, predictedCentiles);
+        });
+
+        async function loadLengthData() {
+            try {
+                appLogger.info('Loading length data');
+                
+                const [entriesResponse, centilesResponse] = await Promise.all([
+                    fetch('/api/length/entries?direction=ASC'),
+                    fetch('/api/length/centiles')
+                ]);
+
+                if (!entriesResponse.ok || !centilesResponse.ok) {
+                    throw new Error('Failed to fetch data');
+                }
+
+                const entries = await entriesResponse.json();
+                const centiles = await centilesResponse.json();
+
+                cachedEntries = entries;
+                cachedCentiles = centiles;
+
+                appLogger.info('Loaded data', { entryCount: entries.length, centileCount: centiles.length });
+
+                updateEntriesTable(entries, centiles);
+                displayLengthChart(entries, centiles, predictedCentiles);
+            } catch (error) {
+                appLogger.error('Failed to load length data', { error: error.message });
+            }
+        }
+
+        function updateEntriesTable(entries, centiles) {
+            const tbody = document.getElementById('entries-tbody');
+            tbody.innerHTML = '';
+
+            const centileMap = new Map(centiles.map(c => [`${c.date}:${c.lengthInCentimetres}`, c.centileValue]));
+
+            // Reverse entries for table display (newest first)
+            [...entries].reverse().forEach(entry => {
+                const row = document.createElement('tr');
+                const centileKey = `${entry.date}:${entry.lengthInCentimetres}`;
+                const centile = centileMap.get(centileKey);
+                const centileDisplay = centile !== undefined ? centile.toFixed(1) : 'N/A';
+
+                row.innerHTML = `
+                    <td><input type="checkbox" class="entry-checkbox" value="${entry.id}" onchange="updateDeleteButton()"></td>
+                    <td>${entry.date}</td>
+                    <td>${entry.lengthInCentimetres}</td>
+                    <td>${locationMap[entry.location] || entry.location}</td>
+                    <td>${centileDisplay}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            updateDeleteButton();
+        }
+
+        function updateDeleteButton() {
+            const selected = document.querySelectorAll('.entry-checkbox:checked').length;
+            const deleteBtn = document.getElementById('deleteButton');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            deleteBtn.disabled = selected === 0;
+            selectedCount.textContent = selected > 0 ? `${selected} selected` : '';
+            
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const allCheckboxes = document.querySelectorAll('.entry-checkbox');
+            selectAllCheckbox.checked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
+        }
+
+        function toggleSelectAll() {
+            const isChecked = document.getElementById('selectAllCheckbox').checked;
+            document.querySelectorAll('.entry-checkbox').forEach(cb => {
+                cb.checked = isChecked;
+            });
+            updateDeleteButton();
+        }
+
+        async function deleteSelectedEntries() {
+            const selected = Array.from(document.querySelectorAll('.entry-checkbox:checked')).map(cb => parseInt(cb.value));
+            
+            if (selected.length === 0) {
+                appLogger.warn('No entries selected for deletion');
+                return;
+            }
+
+            if (!confirm(`Delete ${selected.length} entry(ies)?`)) {
+                appLogger.debug('Delete cancelled by user', { count: selected.length });
+                return;
+            }
+
+            try {
+                appLogger.warn('Deleting length entries', { ids: selected, count: selected.length });
+                
+                const response = await fetch('/api/length/entries/batch', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(selected)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                appLogger.info('Length entries deleted successfully', { count: selected.length });
+
+                // Reload data
+                await loadLengthData();
+                document.getElementById('selectAllCheckbox').checked = false;
+            } catch (error) {
+                appLogger.error('Error deleting length entries', { error: error.message, ids: selected });
+                alert(`Failed to delete entries: ${error.message}`);
+            }
+        }
+
+        function displayLengthChart(entries, centiles, predictedCentilesData = []) {
+            if (entries.length === 0) {
+                document.getElementById('content').innerHTML = '<p class="no-data">No length entries recorded yet.</p>';
+                return;
+            }
+
+            const centileMap = new Map(centiles.map(c => [`${c.date}:${c.lengthInCentimetres}`, c.centileValue]));
+            const lastEntryDate = entries[entries.length - 1].date;
+            const predictedFuture = predictedCentilesData.filter(c => c.date > lastEntryDate);
+            const timelineData = entries.map(entry => ({
+                date: entry.date,
+                length: entry.lengthInCentimetres,
+                centile: centileMap.get(`${entry.date}:${entry.lengthInCentimetres}`) ?? null,
+                predictedLength: null,
+                predictedCentile: null
+            }));
+
+            predictedFuture.forEach(prediction => {
+                timelineData.push({
+                    date: prediction.date,
+                    length: null,
+                    centile: null,
+                    predictedLength: prediction.lengthInCentimetres,
+                    predictedCentile: prediction.centileValue
+                });
+            });
+
+            // Calculate dynamic length range with 10% padding (expand only if predictions exceed range)
+            const lengths = entries.map(e => e.lengthInCentimetres);
+            let minLength = Math.min(...lengths);
+            let maxLength = Math.max(...lengths);
+
+            if (predictedFuture.length > 0) {
+                const predictedLengths = predictedFuture.map(p => p.lengthInCentimetres);
+                const predictedMin = Math.min(...predictedLengths);
+                const predictedMax = Math.max(...predictedLengths);
+                minLength = Math.min(minLength, predictedMin);
+                maxLength = Math.max(maxLength, predictedMax);
+            }
+            const lengthPadding = (maxLength - minLength) * 0.1;
+            const yMin = Math.max(10, Math.floor((minLength - lengthPadding) / 5) * 5);
+            const yMax = Math.ceil((maxLength + lengthPadding) / 5) * 5;
+
+            // Calculate dynamic centile range with padding
+            const centileValues = centiles.map(c => c.centileValue)
+                .concat(predictedFuture.map(c => c.centileValue))
+                .filter(v => v !== null);
+            const minCentile = centileValues.length > 0 ? Math.min(...centileValues) : 0;
+            const maxCentile = centileValues.length > 0 ? Math.max(...centileValues) : 100;
+            const centilePadding = (maxCentile - minCentile) * 0.1;
+            const y1Min = Math.max(0, Math.floor(minCentile - centilePadding));
+            const y1Max = Math.min(100, Math.ceil(maxCentile + centilePadding));
+
+            chart = displayChart({
+                containerId: 'content',
+                data: timelineData,
+                chartInstance: chart,
+                prepareLabels: (data) => data.map(entry => entry.date),
+                datasets: [
+                    {
+                        label: 'Length (cm)',
+                        prepareData: (data) => data.map(entry => entry.length),
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    ...(predictedFuture.length > 0 ? [
+                        {
+                            label: 'Predicted Length (cm)',
+                            prepareData: (data) => data.map(entry => entry.predictedLength),
+                            borderColor: '#009688',
+                            backgroundColor: 'rgba(0, 150, 136, 0.1)',
+                            borderDash: [6, 6],
+                            fill: false,
+                            yAxisID: 'y',
+                            pointRadius: 4,
+                            pointBackgroundColor: '#009688'
+                        }
+                    ] : []),
+                    {
+                        label: 'Centile (%)',
+                        prepareData: (data) => data.map(entry => entry.centile),
+                        borderColor: '#FF9800',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y1',
+                        pointRadius: 5,
+                        pointBackgroundColor: '#FF9800'
+                    }
+                ],
+                scales: {
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        title: { display: true, text: 'Length (cm)' },
+                        min: yMin,
+                        max: yMax
+                    },
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            tooltipFormat: 'yyyy-MM-dd'
+                        },
+                        ticks: {
+                            maxRotation: window.innerWidth <= 480 ? 45 : 0,
+                            minRotation: window.innerWidth <= 480 ? 45 : 0
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        title: { display: true, text: 'Centile (%)' },
+                        min: y1Min,
+                        max: y1Max,
+                        grid: { drawOnChartArea: false }
+                    }
+                },
+                emptyStateMessage: 'No length data available'
+            });
+        }
+
+        // Load data on page load
+        loadLengthData();
+    </script>
+</body>
+</html>

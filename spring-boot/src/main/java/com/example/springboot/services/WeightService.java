@@ -14,6 +14,7 @@ import com.example.springboot.persistence.WeightRepository;
 import com.example.springboot.utilities.LinearRegressionResult;
 import com.example.springboot.utilities.LinearRegressionUtility;
 import com.example.springboot.utilities.NormalDistributionUtility;
+import com.example.springboot.utilities.WeightCentileParametersData;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,8 +48,15 @@ public class WeightService {
         List<WeightEntry> entries = repository.findAll(Sort.by(Sort.Direction.ASC, "date"));
         List<Centile> centiles = new ArrayList<>(entries.size());
         for (WeightEntry entry : entries) {
-            Centile centile = NormalDistributionUtility.calculateCentile(entry, log);
-            centiles.add(centile);
+            double centileValue = NormalDistributionUtility.calculateCentileValue(
+                entry.getWeightInGrams(),
+                entry.getDate(),
+                WeightCentileParametersData.INSTANCE,
+                "weight(g)",
+                1000.0,
+                log
+            );
+            centiles.add(new Centile(entry.getDate(), entry.getWeightInGrams(), centileValue));
         }
         return centiles;
     }
@@ -56,6 +64,13 @@ public class WeightService {
     public void deleteEntry(Long id) {
         log.info("Deleting weight entry with id: {}", id);
         repository.deleteById(id);
+    }
+
+    public void batchDelete(List<Long> ids) {
+        log.info("Batch deleting {} weight entries", ids.size());
+        for (Long id : ids) {
+            repository.deleteById(id);
+        }
     }
 
     public List<Centile> predictWeightTrend(int daysIntoFuture) {
@@ -81,7 +96,15 @@ public class WeightService {
         StringBuilder logBuilder2 = new StringBuilder("Weight:\n");
         StringBuilder logBuilder3 = new StringBuilder("Centile:\n");
         for (WeightEntry entry : predictedEntries) {
-            Centile centile = NormalDistributionUtility.calculateCentile(entry, log);
+            double centileValue = NormalDistributionUtility.calculateCentileValue(
+                entry.getWeightInGrams(),
+                entry.getDate(),
+                WeightCentileParametersData.INSTANCE,
+                "weight(g)",
+                1000.0,
+                log
+            );
+            Centile centile = new Centile(entry.getDate(), entry.getWeightInGrams(), centileValue);
             logBuilder1.append(String.format("%s\n", entry.getDate()));
             logBuilder2.append(String.format("%d\n", entry.getWeightInGrams()));
             logBuilder3.append(String.format("%.2f\n", centile.centileValue()));
