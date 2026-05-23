@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { href: 'length-tracker.html', label: 'Length Tracker' },
             { href: 'home-assistant.html', label: 'Home Assistant' },
             { href: 'brightness-dashboard.html', label: 'Brightness Dashboard' },
+            { href: 'delayed-actions.html', label: 'Delayed Actions' },
             { href: 'bathroom-telemetry.html', label: 'Bathroom Telemetry' }
         ];
 

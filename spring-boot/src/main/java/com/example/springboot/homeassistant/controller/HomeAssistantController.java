@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.models.LightEntityClassifier;
 import com.example.springboot.homeassistant.services.BrightnessAutomationExclusionRegistry;
+import com.example.springboot.homeassistant.services.DelayedActionService;
 import com.example.springboot.homeassistant.services.LightBrightnessService;
 import com.example.springboot.homeassistant.services.TimeOfDayBrightnessPolicy;
 import com.example.springboot.homeassistant.services.TimeOfDayBrightnessScheduleService;
@@ -33,10 +34,25 @@ import lombok.RequiredArgsConstructor;
 public class HomeAssistantController {
 
     private final LightBrightnessService lightBrightnessService;
+    private final DelayedActionService delayedActionService;
 
     @GetMapping("/lights")
     public List<LightEntity> getLightEntities() {
         return lightBrightnessService.getLightEntities();
+    }
+
+    @GetMapping("/delayed-actions")
+    public List<DelayedActionItem> getDelayedActions() {
+        return delayedActionService.getPendingActions().stream()
+            .map(action -> new DelayedActionItem(
+                action.actionKey(),
+                action.lightEntityId(),
+                action.phase(),
+                action.attempt(),
+                action.rootScheduledAtEpochMs(),
+                action.nextFireTime()
+            ))
+            .toList();
     }
 
     @GetMapping("/lights/{entityId:.+}")
@@ -170,5 +186,15 @@ public class HomeAssistantController {
     }
 
     public record ManualOverrideLeaseItem(String friendlyName, String entityId, Instant overrideUntil) {
+    }
+
+    public record DelayedActionItem(
+        String actionKey,
+        String lightEntityId,
+        String phase,
+        int attempt,
+        long rootScheduledAtEpochMs,
+        Instant nextFireTime
+    ) {
     }
 }

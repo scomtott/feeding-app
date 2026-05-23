@@ -35,6 +35,7 @@ public class LightBrightnessService {
     private final ObjectMapper objectMapper;
     private final BathroomTelemetryStorageService bathroomTelemetryStorageService;
     private final IlluminanceSensorService illuminanceSensorService;
+    private final DelayedActionService delayedActionService;
     private static final Duration MANUAL_OVERRIDE_DURATION = Duration.ofMinutes(60);
     private static final Duration AUTOMATION_ACK_WINDOW = Duration.ofSeconds(30);
     private static final int BRIGHTNESS_TOLERANCE = 2;
@@ -66,10 +67,12 @@ public class LightBrightnessService {
     }
 
     public void turnOnLight(String entityId) {
+        delayedActionService.cancelTurnOffLightActions(entityId);
         postLightServiceAction("turn_on", lightServicePayload(entityId));
     }
 
     public void turnOnLight(String entityId, Integer brightness) {
+        delayedActionService.cancelTurnOffLightActions(entityId);
         postLightServiceAction(
             "turn_on",
             lightServicePayload(entityId)
@@ -81,6 +84,7 @@ public class LightBrightnessService {
         if (rgbColor == null || rgbColor.size() != 3) {
             throw new IllegalArgumentException("rgbColor must contain exactly 3 values");
         }
+        delayedActionService.cancelTurnOffLightActions(entityId);
         postLightServiceAction(
             "turn_on",
             lightServicePayload(entityId)
@@ -90,6 +94,7 @@ public class LightBrightnessService {
     }
 
     public void turnOnLightWhite(String entityId, Integer brightness) {
+        delayedActionService.cancelTurnOffLightActions(entityId);
         postLightServiceAction(
             "turn_on",
             lightServicePayload(entityId)

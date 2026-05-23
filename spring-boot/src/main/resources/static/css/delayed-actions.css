@@ -1,0 +1,135 @@
+body {
+    margin: 0;
+    padding: 20px;
+    background: linear-gradient(145deg, #f4f9ff 0%, #fcfef6 55%, #fff7f1 100%);
+    color: #1e2a37;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.container {
+    max-width: 1220px;
+    margin: 0 auto;
+}
+
+nav {
+    margin-bottom: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+nav a {
+    text-decoration: none;
+    color: #2a3a4a;
+    padding: 8px 12px;
+    border-radius: 10px;
+}
+
+nav a.active,
+nav a:hover {
+    background: #0f6ad9;
+    color: #fff;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+h1 {
+    margin: 0;
+}
+
+button {
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: #0f6ad9;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #0b4f9f;
+}
+
+.panel {
+    background: #ffffffd9;
+    border: 1px solid #dce6f4;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 30px rgba(31, 42, 54, 0.08);
+}
+
+.summary {
+    margin: 0 0 12px 0;
+    color: #5e6d7c;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 860px;
+}
+
+.table th,
+.table td {
+    border: 1px solid #dde5f1;
+    padding: 8px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.table th {
+    background: #f2f6fc;
+}
+
+.table tbody tr:nth-child(even) {
+    background: #fafcff;
+}
+
+.phase {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.82rem;
+    background: #e7f0ff;
+    color: #214d8f;
+}
+
+.muted {
+    text-align: center;
+    color: #6d7b8a;
+}
+
+.error {
+    color: #b83232;
+}
+
+.status-message {
+    margin-top: 8px;
+    min-height: 20px;
+    color: #0f6a32;
+}
+
+.status-message.error {
+    color: #b83232;
+}
+
+@media (max-width: 760px) {
+    body {
+        padding: 12px;
+    }
+
+    .panel {
+        padding: 10px;
+    }
+}

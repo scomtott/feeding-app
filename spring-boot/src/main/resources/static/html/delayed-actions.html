@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delayed Actions</title>
+    <link rel="stylesheet" href="../css/delayed-actions.css">
+    <script src="../js/logger.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <header class="page-header">
+            <h1>Pending Delayed Actions</h1>
+            <button id="reloadButton" type="button">Refresh</button>
+        </header>
+
+        <section class="panel">
+            <p class="summary" id="summaryText">Loading pending delayed actions...</p>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Action Key</th>
+                            <th>Light Entity</th>
+                            <th>Phase</th>
+                            <th>Attempt</th>
+                            <th>Scheduled Root</th>
+                            <th>Next Fire</th>
+                            <th>Time Remaining</th>
+                        </tr>
+                    </thead>
+                    <tbody id="actionsTableBody">
+                        <tr><td colspan="7" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <p id="statusMessage" class="status-message"></p>
+    </div>
+
+    <script src="../js/delayed-actions.js"></script>
+    <script src="../js/nav.js"></script>
+</body>
+</html>
