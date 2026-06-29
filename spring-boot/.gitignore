@@ -37,3 +37,6 @@ out/
 .vscode/
 
 nohup.out
+
+# Server-only OneDrive backup credentials/state
+data/journal/onedrive/
