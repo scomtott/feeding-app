@@ -80,6 +80,12 @@ h1 {
     flex-wrap: wrap;
 }
 
+.hint {
+    color: #666;
+    font-size: 12px;
+    margin-top: 6px;
+}
+
 button {
     padding: 10px 14px;
     background-color: #2196F3;

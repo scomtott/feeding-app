@@ -17,8 +17,9 @@
     const bootstrapExpires = document.getElementById('bootstrap-expires');
     const bootstrapStatus = document.getElementById('bootstrap-status');
     const bootstrapMessage = document.getElementById('bootstrap-message');
+    const bootstrapHint = document.getElementById('bootstrap-hint');
 
-    let bootstrapRequestId = null;
+    let bootstrapRequestId = sessionStorage.getItem('journalBackupBootstrapRequestId');
     let bootstrapPollTimer = null;
 
     checkButton.addEventListener('click', runHealthCheck);
@@ -26,11 +27,21 @@
     pollBootstrapButton.addEventListener('click', pollBootstrapStatus);
 
     document.addEventListener('DOMContentLoaded', async () => {
+        if (bootstrapRequestId) {
+            bootstrapStatus.textContent = 'PENDING';
+            bootstrapStatus.className = '';
+            bootstrapMessage.textContent = 'Resuming pending bootstrap request. Click Check Authorization Status.';
+            bootstrapMessage.className = '';
+            pollBootstrapButton.disabled = false;
+            bootstrapHint.textContent = 'A pending bootstrap request was restored for this browser session.';
+        }
         await runHealthCheck();
     });
 
     async function runHealthCheck() {
+        const previousText = checkButton.textContent;
         checkButton.disabled = true;
+        checkButton.textContent = 'Checking...';
         message.textContent = 'Running health check...';
         message.className = '';
 
@@ -48,6 +59,7 @@
             message.className = 'bad';
         } finally {
             checkButton.disabled = false;
+            checkButton.textContent = previousText;
         }
     }
 
@@ -89,6 +101,7 @@
 
             const data = await response.json();
             bootstrapRequestId = data.requestId;
+            sessionStorage.setItem('journalBackupBootstrapRequestId', bootstrapRequestId);
             bootstrapUserCode.textContent = data.userCode || '-';
             bootstrapVerificationUrl.innerHTML = data.verificationUriComplete
                 ? `<a href="${escapeHtml(data.verificationUriComplete)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.verificationUri)}</a>`
@@ -99,6 +112,7 @@
             bootstrapMessage.textContent = data.message || 'Open the URL and enter code.';
             bootstrapMessage.className = '';
             pollBootstrapButton.disabled = false;
+            bootstrapHint.textContent = 'Authorization request active. Use Check Authorization Status until completed.';
 
             if (bootstrapPollTimer) {
                 clearInterval(bootstrapPollTimer);
@@ -167,7 +181,9 @@
             bootstrapPollTimer = null;
         }
         bootstrapRequestId = null;
+        sessionStorage.removeItem('journalBackupBootstrapRequestId');
         pollBootstrapButton.disabled = true;
+        bootstrapHint.textContent = 'No active bootstrap request. Start a new authorization to enable status polling.';
     }
 
     function renderHealth(health) {
