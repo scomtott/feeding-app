@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal Backup Health</title>
+    <link rel="stylesheet" href="../css/journal-backup-health.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Journal Backup Configuration Health</h1>
+        <p class="subtitle">Checks OneDrive backup configuration, token acquisition, and drive reachability without uploading files.</p>
+
+        <div class="actions">
+            <button id="check-health" type="button">Run Health Check</button>
+        </div>
+
+        <div class="bootstrap-panel">
+            <h2>One-Time Token Bootstrap (Personal OneDrive)</h2>
+            <p class="subtitle">Start device authorization once, then this server stores the refresh token in its credentials file.</p>
+            <div class="bootstrap-form">
+                <label for="bootstrap-client-id">Client ID</label>
+                <input id="bootstrap-client-id" type="text" placeholder="Enter Azure app client ID">
+
+                <label for="bootstrap-tenant-id">Tenant</label>
+                <input id="bootstrap-tenant-id" type="text" value="consumers" placeholder="consumers">
+
+                <label for="bootstrap-remote-root">Remote Root Folder (optional)</label>
+                <input id="bootstrap-remote-root" type="text" placeholder="feeding-app-journal">
+
+                <div class="bootstrap-actions">
+                    <button id="start-bootstrap" type="button">Start Device Authorization</button>
+                    <button id="poll-bootstrap" type="button" disabled>Check Authorization Status</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="row"><strong>User Code:</strong> <span id="bootstrap-user-code">-</span></div>
+                <div class="row"><strong>Verification URL:</strong> <span id="bootstrap-verification-url">-</span></div>
+                <div class="row"><strong>Expires At:</strong> <span id="bootstrap-expires">-</span></div>
+                <div class="row"><strong>Bootstrap Status:</strong> <span id="bootstrap-status">-</span></div>
+                <div class="row"><strong>Bootstrap Message:</strong> <span id="bootstrap-message">-</span></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="row"><strong>Enabled:</strong> <span id="enabled">-</span></div>
+            <div class="row"><strong>Checked At:</strong> <span id="checked-at">-</span></div>
+            <div class="row"><strong>Credentials Present:</strong> <span id="credentials-present">-</span></div>
+            <div class="row"><strong>Token Acquired:</strong> <span id="token-acquired">-</span></div>
+            <div class="row"><strong>Drive Reachable:</strong> <span id="drive-reachable">-</span></div>
+            <div class="row"><strong>Drive Name:</strong> <span id="drive-name">-</span></div>
+            <div class="row"><strong>Message:</strong> <span id="message">-</span></div>
+        </div>
+    </div>
+
+    <script src="../js/logger.js"></script>
+    <script src="../js/journal-backup-health.js"></script>
+</body>
+</html>

@@ -20,6 +20,12 @@ import com.example.springboot.models.JournalDayEntry;
 import com.example.springboot.models.JournalEntrySaveRequest;
 import com.example.springboot.models.JournalImageUploadResponse;
 import com.example.springboot.models.JournalMonthIndexResponse;
+import com.example.springboot.models.JournalBackupStatus;
+import com.example.springboot.models.JournalBackupHealthStatus;
+import com.example.springboot.models.JournalBackupBootstrapStartRequest;
+import com.example.springboot.models.JournalBackupBootstrapStartResponse;
+import com.example.springboot.models.JournalBackupBootstrapPollResponse;
+import com.example.springboot.services.JournalOneDriveBackupService;
 import com.example.springboot.services.JournalService;
 
 import lombok.RequiredArgsConstructor;
@@ -30,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class JournalController {
 
     private final JournalService journalService;
+    private final JournalOneDriveBackupService backupService;
 
     @GetMapping("/entry")
     public JournalDayEntry getEntry(@RequestParam LocalDate date) {
@@ -49,6 +56,32 @@ public class JournalController {
     @PostMapping(value = "/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public JournalImageUploadResponse uploadImage(@RequestParam LocalDate date, @RequestParam("image") MultipartFile image) {
         return journalService.uploadImage(date, image);
+    }
+
+    @GetMapping("/backup/status")
+    public JournalBackupStatus getBackupStatus() {
+        return backupService.getStatus();
+    }
+
+    @PostMapping("/backup/trigger")
+    public JournalBackupStatus triggerBackup() {
+        backupService.triggerBackupAsync();
+        return backupService.getStatus();
+    }
+
+    @GetMapping("/backup/health")
+    public JournalBackupHealthStatus getBackupHealth() {
+        return backupService.checkConfigurationHealth();
+    }
+
+    @PostMapping("/backup/bootstrap/device/start")
+    public JournalBackupBootstrapStartResponse startDeviceBootstrap(@RequestBody JournalBackupBootstrapStartRequest request) {
+        return backupService.startDeviceCodeBootstrap(request);
+    }
+
+    @PostMapping("/backup/bootstrap/device/poll")
+    public JournalBackupBootstrapPollResponse pollDeviceBootstrap(@RequestParam String requestId) {
+        return backupService.pollDeviceCodeBootstrap(requestId);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -21,12 +21,20 @@
     const editorSection = document.getElementById('editor-section');
     const browseModeButton = document.getElementById('browse-mode-button');
     const editModeButton = document.getElementById('edit-mode-button');
+    const backupState = document.getElementById('backup-state');
+    const backupLastRun = document.getElementById('backup-last-run');
+    const backupLastSuccess = document.getElementById('backup-last-success');
+    const backupMessage = document.getElementById('backup-message');
+    const backupFilesScanned = document.getElementById('backup-files-scanned');
+    const backupFilesUploaded = document.getElementById('backup-files-uploaded');
+    const triggerBackupButton = document.getElementById('trigger-backup');
 
     document.getElementById('load-today').addEventListener('click', () => setCurrentDate(toIsoDate(new Date())));
     document.getElementById('prev-day').addEventListener('click', () => stepDay(-1));
     document.getElementById('next-day').addEventListener('click', () => stepDay(1));
     document.getElementById('save-entry').addEventListener('click', saveCurrentEntry);
     document.getElementById('upload-image').addEventListener('click', uploadImageForCurrentDate);
+    triggerBackupButton.addEventListener('click', triggerBackupNow);
     browseModeButton.addEventListener('click', () => setMode('browse'));
     editModeButton.addEventListener('click', () => setMode('edit'));
 
@@ -43,7 +51,91 @@
         const today = toIsoDate(new Date());
         await setCurrentDate(today);
         await loadMonthIndex();
+        await loadBackupStatus();
+        window.setInterval(loadBackupStatus, 60000);
     });
+
+    async function loadBackupStatus() {
+        try {
+            const response = await fetch('/api/journal/backup/status');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+
+            const data = await response.json();
+            renderBackupStatus(data);
+        } catch (error) {
+            window.appLogger?.error('Failed loading backup status', { error: error.message });
+            backupState.textContent = 'UNKNOWN';
+            backupState.className = 'backup-state-failed';
+            backupMessage.textContent = 'Could not load backup status';
+        }
+    }
+
+    async function triggerBackupNow() {
+        triggerBackupButton.disabled = true;
+        backupMessage.textContent = 'Starting backup...';
+
+        try {
+            const response = await fetch('/api/journal/backup/trigger', {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+
+            const data = await response.json();
+            renderBackupStatus(data);
+            setTimeout(loadBackupStatus, 1200);
+        } catch (error) {
+            window.appLogger?.error('Failed triggering backup', { error: error.message });
+            backupMessage.textContent = 'Could not trigger backup';
+            backupState.textContent = 'FAILED';
+            backupState.className = 'backup-state-failed';
+        } finally {
+            triggerBackupButton.disabled = false;
+        }
+    }
+
+    function renderBackupStatus(status) {
+        const state = status.state || 'UNKNOWN';
+        backupState.textContent = state;
+        backupState.className = mapBackupStateClass(state);
+
+        backupLastRun.textContent = formatDateTime(status.lastRunAt);
+        backupLastSuccess.textContent = formatDateTime(status.lastSuccessAt);
+        backupMessage.textContent = status.message || '-';
+        backupFilesScanned.textContent = String(status.filesScanned ?? 0);
+        backupFilesUploaded.textContent = String(status.filesUploaded ?? 0);
+    }
+
+    function mapBackupStateClass(state) {
+        switch (state) {
+            case 'SUCCESS':
+                return 'backup-state-success';
+            case 'FAILED':
+                return 'backup-state-failed';
+            case 'RUNNING':
+                return 'backup-state-running';
+            case 'DISABLED':
+                return 'backup-state-disabled';
+            default:
+                return '';
+        }
+    }
+
+    function formatDateTime(value) {
+        if (!value) {
+            return '-';
+        }
+
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return '-';
+        }
+
+        return date.toLocaleString();
+    }
 
     function setMode(mode) {
         state.mode = mode;

@@ -32,6 +32,21 @@
             <div id="month-index" class="month-index"></div>
         </section>
 
+        <section class="backup-status-section">
+            <h2>OneDrive Backup Status</h2>
+            <div class="backup-actions">
+                <button type="button" id="trigger-backup" class="btn-secondary">Run Backup Now</button>
+            </div>
+            <div class="backup-status-grid">
+                <div><strong>State:</strong> <span id="backup-state">Loading...</span></div>
+                <div><strong>Last Run:</strong> <span id="backup-last-run">-</span></div>
+                <div><strong>Last Success:</strong> <span id="backup-last-success">-</span></div>
+                <div><strong>Result:</strong> <span id="backup-message">-</span></div>
+                <div><strong>Files Scanned:</strong> <span id="backup-files-scanned">0</span></div>
+                <div><strong>Files Uploaded:</strong> <span id="backup-files-uploaded">0</span></div>
+            </div>
+        </section>
+
         <section class="mode-toggle-section">
             <h2>Mode</h2>
             <div class="mode-toggle" role="tablist" aria-label="Journal mode selector">
