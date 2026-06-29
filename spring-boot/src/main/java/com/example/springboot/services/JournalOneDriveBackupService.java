@@ -155,7 +155,7 @@ public class JournalOneDriveBackupService {
         try {
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
-                throw new IllegalStateException("Device bootstrap start failed (HTTP " + response.statusCode() + ")");
+                throw new IllegalStateException(buildOauthErrorMessage("Device bootstrap start failed", response));
             }
 
             JsonNode json = objectMapper.readTree(response.body());
@@ -585,6 +585,18 @@ public class JournalOneDriveBackupService {
             throw new IllegalStateException("Expected field in response: " + fieldName);
         }
         return value.asText();
+    }
+
+    private String buildOauthErrorMessage(String prefix, HttpResponse<String> response) {
+        String base = prefix + " (HTTP " + response.statusCode() + ")";
+        String body = response.body();
+        if (isBlank(body)) {
+            return base;
+        }
+
+        String normalized = body.replace('\n', ' ').replace('\r', ' ').trim();
+        String snippet = normalized.length() > 300 ? normalized.substring(0, 300) + "..." : normalized;
+        return base + ": " + snippet;
     }
 
     private String normalizeRemoteRootFolder(String value) {
