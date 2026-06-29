@@ -32,7 +32,15 @@
             <div id="month-index" class="month-index"></div>
         </section>
 
-        <section class="editor-section">
+        <section class="mode-toggle-section">
+            <h2>Mode</h2>
+            <div class="mode-toggle" role="tablist" aria-label="Journal mode selector">
+                <button type="button" id="browse-mode-button" class="mode-button active" aria-pressed="true">Browse Mode</button>
+                <button type="button" id="edit-mode-button" class="mode-button" aria-pressed="false">Edit Mode</button>
+            </div>
+        </section>
+
+        <section class="editor-section hidden-section" id="editor-section">
             <h2>Edit Entry</h2>
             <textarea id="markdown-editor" placeholder="Write your markdown for the selected date..."></textarea>
             <div class="editor-controls">
@@ -46,7 +54,7 @@
             </div>
         </section>
 
-        <section class="preview-section">
+        <section class="preview-section" id="preview-section">
             <h2>Browse Rendered Entry</h2>
             <div id="rendered-entry" class="rendered-entry"></div>
         </section>

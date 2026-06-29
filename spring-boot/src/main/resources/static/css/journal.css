@@ -60,6 +60,7 @@ h2 {
 }
 
 .date-controls,
+.mode-toggle-section,
 .month-index-section,
 .editor-section,
 .preview-section {
@@ -72,12 +73,33 @@ h2 {
 
 .date-controls-row,
 .month-controls-row,
+.mode-toggle,
 .editor-controls,
 .upload-controls {
     display: flex;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
+}
+
+.mode-button {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.mode-button:hover {
+    background-color: #dcedc8;
+}
+
+.mode-button.active {
+    background-color: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+.hidden-section {
+    display: none;
 }
 
 .month-controls-row {
@@ -198,6 +220,7 @@ button:hover {
 
     .date-controls-row,
     .month-controls-row,
+    .mode-toggle,
     .upload-controls {
         flex-direction: column;
         align-items: stretch;

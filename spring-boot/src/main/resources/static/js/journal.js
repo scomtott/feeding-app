@@ -6,7 +6,8 @@
     });
 
     const state = {
-        currentDate: null
+        currentDate: null,
+        mode: 'browse'
     };
 
     const entryDateInput = document.getElementById('entry-date');
@@ -16,12 +17,18 @@
     const statusMessage = document.getElementById('status-message');
     const monthIndexContainer = document.getElementById('month-index');
     const imageInput = document.getElementById('image-input');
+    const previewSection = document.getElementById('preview-section');
+    const editorSection = document.getElementById('editor-section');
+    const browseModeButton = document.getElementById('browse-mode-button');
+    const editModeButton = document.getElementById('edit-mode-button');
 
     document.getElementById('load-today').addEventListener('click', () => setCurrentDate(toIsoDate(new Date())));
     document.getElementById('prev-day').addEventListener('click', () => stepDay(-1));
     document.getElementById('next-day').addEventListener('click', () => stepDay(1));
     document.getElementById('save-entry').addEventListener('click', saveCurrentEntry);
     document.getElementById('upload-image').addEventListener('click', uploadImageForCurrentDate);
+    browseModeButton.addEventListener('click', () => setMode('browse'));
+    editModeButton.addEventListener('click', () => setMode('edit'));
 
     entryDateInput.addEventListener('change', async () => {
         await setCurrentDate(entryDateInput.value);
@@ -32,10 +39,24 @@
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
+        setMode('browse');
         const today = toIsoDate(new Date());
         await setCurrentDate(today);
         await loadMonthIndex();
     });
+
+    function setMode(mode) {
+        state.mode = mode;
+
+        const isBrowseMode = mode === 'browse';
+        previewSection.classList.toggle('hidden-section', !isBrowseMode);
+        editorSection.classList.toggle('hidden-section', isBrowseMode);
+
+        browseModeButton.classList.toggle('active', isBrowseMode);
+        editModeButton.classList.toggle('active', !isBrowseMode);
+        browseModeButton.setAttribute('aria-pressed', String(isBrowseMode));
+        editModeButton.setAttribute('aria-pressed', String(!isBrowseMode));
+    }
 
     async function setCurrentDate(dateString) {
         if (!dateString) {
