@@ -26,6 +26,33 @@ h1 {
     font-size: 24px;
 }
 
+nav {
+    background-color: #4CAF50;
+    padding: 15px;
+    margin: -15px -15px 20px -15px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+    padding: 6px 10px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+nav a:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+nav a.active {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
 h2 {
     font-size: 18px;
     color: #333;
@@ -160,6 +187,15 @@ button:hover {
 }
 
 @media (max-width: 768px) {
+    nav {
+        gap: 8px;
+    }
+
+    nav a {
+        flex: 1 1 calc(50% - 8px);
+        text-align: center;
+    }
+
     .date-controls-row,
     .month-controls-row,
     .upload-controls {
