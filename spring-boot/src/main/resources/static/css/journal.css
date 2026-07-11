@@ -233,6 +233,15 @@ button:hover {
     padding: 12px;
     background-color: #fff;
     overflow-x: auto;
+    line-height: 1.5;
+}
+
+.rendered-entry p {
+    margin: 0 0 1em;
+}
+
+.rendered-entry p:last-child {
+    margin-bottom: 0;
 }
 
 .rendered-entry img {
