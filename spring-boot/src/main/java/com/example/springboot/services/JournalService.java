@@ -67,6 +67,10 @@ public class JournalService {
         }
     }
 
+    public boolean hasDayEntry(LocalDate date) {
+        return Files.exists(resolveMarkdownPath(date));
+    }
+
     public JournalDayEntry saveDayEntry(LocalDate date, String markdown) {
         Path filePath = resolveMarkdownPath(date);
         String content = markdown == null ? "" : markdown;

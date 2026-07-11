@@ -50,7 +50,8 @@
                     <label for="predict-days">Number of days to predict:</label>
                     <input type="number" id="predict-days" min="1" max="365" required>
                 </div>
-                <button type="submit" class="btn-submit">Predict</button>
+                <button type="submit" class="btn-submit">Predict Linear Regression</button>
+                <button type="button" class="btn-secondary" id="predict-constant-centile">Predict Constant Centile</button>
                 <button type="button" class="btn-secondary" id="clear-predictions" disabled>Clear Predictions</button>
                 <span id="predict-message" class="form-message"></span>
             </form>
@@ -144,7 +145,21 @@
 
         document.getElementById('predict-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            await requestPrediction('/api/weight/centiles/predict', 'linear regression');
+        });
 
+        document.getElementById('predict-constant-centile').addEventListener('click', async () => {
+            await requestPrediction('/api/weight/centiles/predict/constant', 'constant centile');
+        });
+
+        document.getElementById('clear-predictions').addEventListener('click', () => {
+            predictedCentiles = [];
+            document.getElementById('clear-predictions').disabled = true;
+            document.getElementById('predict-message').textContent = '';
+            displayWeightChart(cachedEntries, cachedCentiles, predictedCentiles);
+        });
+
+        async function requestPrediction(url, predictionLabel) {
             const daysInput = document.getElementById('predict-days');
             const messageSpan = document.getElementById('predict-message');
             const daysToPredict = parseInt(daysInput.value, 10);
@@ -156,32 +171,25 @@
             }
 
             try {
-                appLogger.info('Requesting weight prediction', { daysToPredict });
+                appLogger.info('Requesting weight prediction', { daysToPredict, predictionLabel });
 
-                const response = await fetch(`/api/weight/centiles/predict?daysToPredict=${daysToPredict}`);
+                const response = await fetch(`${url}?daysToPredict=${daysToPredict}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
 
                 predictedCentiles = await response.json();
-                messageSpan.textContent = `Predicted ${daysToPredict} day(s).`;
+                messageSpan.textContent = `Predicted ${daysToPredict} day(s) using ${predictionLabel}.`;
                 messageSpan.style.color = '#4CAF50';
                 document.getElementById('clear-predictions').disabled = false;
 
                 displayWeightChart(cachedEntries, cachedCentiles, predictedCentiles);
             } catch (error) {
-                appLogger.error('Failed to load predictions', { error: error.message });
+                appLogger.error('Failed to load predictions', { error: error.message, predictionLabel });
                 messageSpan.textContent = 'Error: ' + error.message;
                 messageSpan.style.color = '#f44336';
             }
-        });
-
-        document.getElementById('clear-predictions').addEventListener('click', () => {
-            predictedCentiles = [];
-            document.getElementById('clear-predictions').disabled = true;
-            document.getElementById('predict-message').textContent = '';
-            displayWeightChart(cachedEntries, cachedCentiles, predictedCentiles);
-        });
+        }
 
         async function loadWeightData() {
             try {

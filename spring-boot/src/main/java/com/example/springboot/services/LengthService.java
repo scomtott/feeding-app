@@ -10,8 +10,11 @@ import org.springframework.stereotype.Service;
 import com.example.springboot.models.LengthCentile;
 import com.example.springboot.models.LengthEntry;
 import com.example.springboot.persistence.LengthRepository;
+import com.example.springboot.utilities.LinearRegressionResult;
+import com.example.springboot.utilities.LinearRegressionUtility;
 import com.example.springboot.utilities.LengthCentileParametersData;
 import com.example.springboot.utilities.NormalDistributionUtility;
+import com.example.springboot.utilities.PredictedMeasurement;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +58,69 @@ public class LengthService {
             );
             centiles.add(new LengthCentile(entry.getDate(), entry.getLengthInCentimetres(), centileValue));
         }
+        return centiles;
+    }
+
+    public List<LengthCentile> predictLengthTrend(int daysIntoFuture) {
+        List<LengthEntry> entries = repository.findAll(Sort.by(Sort.Direction.ASC, "date"));
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+
+        long[] xValues = entries.stream().mapToLong(e -> e.getDate().toEpochDay()).toArray();
+        double[] yValues = entries.stream().mapToDouble(LengthEntry::getLengthInCentimetres).toArray();
+
+        LinearRegressionResult regressionResult = LinearRegressionUtility.performLinearRegression(xValues, yValues, log);
+        LocalDate lastDate = entries.get(entries.size() - 1).getDate();
+
+        List<LengthCentile> predictedCentiles = new ArrayList<>(daysIntoFuture);
+        for (int i = 0; i < daysIntoFuture; i++) {
+            LocalDate newDate = lastDate.plusDays(i + 1);
+            double predictedLength = regressionResult.slope() * newDate.toEpochDay() + regressionResult.intercept();
+            double centileValue = NormalDistributionUtility.calculateCentileValue(
+                predictedLength,
+                newDate,
+                LengthCentileParametersData.INSTANCE,
+                "length(cm)",
+                1.0,
+                log
+            );
+            predictedCentiles.add(new LengthCentile(newDate, predictedLength, centileValue));
+        }
+
+        return predictedCentiles;
+    }
+
+    public List<LengthCentile> predictLengthTrendConstantCentile(int daysIntoFuture) {
+        List<LengthEntry> entries = repository.findAll(Sort.by(Sort.Direction.ASC, "date"));
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+
+        LengthEntry baselineEntry = entries.get(entries.size() - 1);
+        List<PredictedMeasurement> predictedMeasurements = NormalDistributionUtility.predictConstantCentileMeasurements(
+            baselineEntry.getLengthInCentimetres(),
+            baselineEntry.getDate(),
+            daysIntoFuture,
+            LengthCentileParametersData.INSTANCE,
+            "length(cm)",
+            1.0,
+            log
+        );
+
+        List<LengthCentile> centiles = new ArrayList<>(predictedMeasurements.size());
+        for (PredictedMeasurement predictedMeasurement : predictedMeasurements) {
+            double centileValue = NormalDistributionUtility.calculateCentileValue(
+                predictedMeasurement.value(),
+                predictedMeasurement.date(),
+                LengthCentileParametersData.INSTANCE,
+                "length(cm)",
+                1.0,
+                log
+            );
+            centiles.add(new LengthCentile(predictedMeasurement.date(), predictedMeasurement.value(), centileValue));
+        }
+
         return centiles;
     }
 

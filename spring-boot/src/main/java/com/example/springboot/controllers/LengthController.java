@@ -46,6 +46,16 @@ public class LengthController {
         return lengthService.calculateCentiles();
     }
 
+    @GetMapping("/centiles/predict")
+    public List<LengthCentile> getCentilesWithPrediction(@RequestParam int daysToPredict) {
+        return lengthService.predictLengthTrend(daysToPredict);
+    }
+
+    @GetMapping("/centiles/predict/constant")
+    public List<LengthCentile> getCentilesWithConstantCentilePrediction(@RequestParam int daysToPredict) {
+        return lengthService.predictLengthTrendConstantCentile(daysToPredict);
+    }
+
     @PostMapping("/entries")
     public LengthEntry save(@RequestBody LengthEntry entry) {
         return lengthService.saveEntry(entry);

@@ -50,6 +50,11 @@ public class WeightController {
         return weightService.predictWeightTrend(daysToPredict);
     }
 
+    @GetMapping("/centiles/predict/constant")
+    public List<Centile> getCentilesWithConstantCentilePrediction(@RequestParam int daysToPredict) {
+        return weightService.predictWeightTrendConstantCentile(daysToPredict);
+    }
+
     @PostMapping("/entries")
     public WeightEntry save(@RequestBody WeightEntry entry) {
         return weightService.saveEntry(entry);

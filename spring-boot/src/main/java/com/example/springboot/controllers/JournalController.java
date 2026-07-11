@@ -16,15 +16,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.springboot.models.JournalBackupBootstrapPollResponse;
+import com.example.springboot.models.JournalBackupBootstrapStartRequest;
+import com.example.springboot.models.JournalBackupBootstrapStartResponse;
+import com.example.springboot.models.JournalBackupHealthStatus;
+import com.example.springboot.models.JournalBackupStatus;
 import com.example.springboot.models.JournalDayEntry;
 import com.example.springboot.models.JournalEntrySaveRequest;
 import com.example.springboot.models.JournalImageUploadResponse;
 import com.example.springboot.models.JournalMonthIndexResponse;
-import com.example.springboot.models.JournalBackupStatus;
-import com.example.springboot.models.JournalBackupHealthStatus;
-import com.example.springboot.models.JournalBackupBootstrapStartRequest;
-import com.example.springboot.models.JournalBackupBootstrapStartResponse;
-import com.example.springboot.models.JournalBackupBootstrapPollResponse;
 import com.example.springboot.services.JournalOneDriveBackupService;
 import com.example.springboot.services.JournalService;
 
@@ -45,7 +45,14 @@ public class JournalController {
 
     @PutMapping("/entry")
     public JournalDayEntry saveEntry(@RequestParam LocalDate date, @RequestBody JournalEntrySaveRequest request) {
-        return journalService.saveDayEntry(date, request.markdown());
+        boolean createdNewEntry = !journalService.hasDayEntry(date);
+        JournalDayEntry savedEntry = journalService.saveDayEntry(date, request.markdown());
+
+        if (createdNewEntry) {
+            backupService.triggerBackupAsync();
+        }
+
+        return savedEntry;
     }
 
     @GetMapping("/month")

@@ -30,8 +30,8 @@
     const triggerBackupButton = document.getElementById('trigger-backup');
 
     document.getElementById('load-today').addEventListener('click', () => setCurrentDate(toIsoDate(new Date())));
-    document.getElementById('prev-day').addEventListener('click', () => stepDay(-1));
-    document.getElementById('next-day').addEventListener('click', () => stepDay(1));
+    document.getElementById('prev-day').addEventListener('click', async () => stepDay(-1));
+    document.getElementById('next-day').addEventListener('click', async () => stepDay(1));
     document.getElementById('save-entry').addEventListener('click', saveCurrentEntry);
     document.getElementById('upload-image').addEventListener('click', uploadImageForCurrentDate);
     triggerBackupButton.addEventListener('click', triggerBackupNow);
@@ -164,17 +164,20 @@
     }
 
     function toIsoDate(date) {
-        return date.toISOString().slice(0, 10);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
     }
 
-    function stepDay(days) {
+    async function stepDay(days) {
         if (!state.currentDate) {
             return;
         }
 
         const current = new Date(state.currentDate + 'T00:00:00');
         current.setDate(current.getDate() + days);
-        setCurrentDate(toIsoDate(current));
+        await setCurrentDate(toIsoDate(current));
     }
 
     async function loadEntry(dateString) {

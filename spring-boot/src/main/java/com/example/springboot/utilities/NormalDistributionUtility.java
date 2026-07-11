@@ -1,6 +1,7 @@
 package com.example.springboot.utilities;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -37,7 +38,78 @@ public class NormalDistributionUtility {
             double ageInYears = dateToYearsOld(measurementDate);
             zScore = calculateZAfter43Weeks(measurementValue, ageInYears, lmsDataProvider, normalisationDivisor, log);
         }
-        
+
+        double centileValue = calculateCentileFromZScore(zScore);
+        log.info("Calculated centile for date {} and {} {}: zScore = {}, centile = {}",
+                measurementDate, measurementName, measurementValue, zScore, centileValue);
+        return centileValue;
+    }
+
+    public static double calculateMeasurementForCentileValue(
+        double centileValue,
+        LocalDate measurementDate,
+        CentileLmsDataProvider lmsDataProvider,
+        String measurementName,
+        double normalisationDivisor,
+        Logger log
+    ) {
+        double zScore = calculateZScoreFromCentileValue(centileValue);
+        double measurement;
+        if (dateToWeeksGestation(measurementDate) < 43.0) {
+            log.info("Calculating measurement for {} entry before 43 weeks gestation", measurementName);
+            double gestationInWeeks = dateToWeeksGestation(measurementDate);
+            measurement = calculateMeasurementBefore43Weeks(zScore, gestationInWeeks, lmsDataProvider, normalisationDivisor, log);
+        } else {
+            log.info("Calculating measurement for {} entry after 43 weeks gestation", measurementName);
+            double ageInYears = dateToYearsOld(measurementDate);
+            measurement = calculateMeasurementAfter43Weeks(zScore, ageInYears, lmsDataProvider, normalisationDivisor, log);
+        }
+
+        log.info("Calculated measurement for date {} and {} centile {}: zScore = {}, measurement = {}",
+                measurementDate, measurementName, centileValue, zScore, measurement);
+        return measurement;
+    }
+
+    public static List<PredictedMeasurement> predictConstantCentileMeasurements(
+        double baselineMeasurement,
+        LocalDate baselineDate,
+        int daysIntoFuture,
+        CentileLmsDataProvider lmsDataProvider,
+        String measurementName,
+        double normalisationDivisor,
+        Logger log
+    ) {
+        if (daysIntoFuture <= 0) {
+            return List.of();
+        }
+
+        double centileValue = calculateCentileValue(
+            baselineMeasurement,
+            baselineDate,
+            lmsDataProvider,
+            measurementName,
+            normalisationDivisor,
+            log
+        );
+
+        List<PredictedMeasurement> predictions = new ArrayList<>(daysIntoFuture);
+        for (int i = 0; i < daysIntoFuture; i++) {
+            LocalDate newDate = baselineDate.plusDays(i + 1);
+            double predictedMeasurement = calculateMeasurementForCentileValue(
+                centileValue,
+                newDate,
+                lmsDataProvider,
+                measurementName,
+                normalisationDivisor,
+                log
+            );
+            predictions.add(new PredictedMeasurement(newDate, predictedMeasurement));
+        }
+
+        return predictions;
+    }
+
+    private static double calculateCentileFromZScore(double zScore) {
         double totalArea = 0.0;
         double lowerBound = -5.0;
         double stepSize = 0.01;
@@ -61,9 +133,69 @@ public class NormalDistributionUtility {
         double y2 = calculateStandardNormalDistribution(zScore);
         totalArea += calculateTrapeziumArea(y1, y2, zScore - lastStep);
 
-        log.info("Calculated centile for date {} and {} {}: zScore = {}, centile = {}",
-                measurementDate, measurementName, measurementValue, zScore, totalArea * 100);
         return totalArea * 100;
+    }
+
+    private static double calculateZScoreFromCentileValue(double centileValue) {
+        double targetArea = Math.max(0.000001, Math.min(0.999999, centileValue / 100.0));
+        double lowerBound = -8.0;
+        double upperBound = 8.0;
+
+        for (int i = 0; i < 80; i++) {
+            double midPoint = (lowerBound + upperBound) / 2.0;
+            double midArea = calculateCentileFromZScore(midPoint) / 100.0;
+
+            if (midArea < targetArea) {
+                lowerBound = midPoint;
+            } else {
+                upperBound = midPoint;
+            }
+        }
+
+        return (lowerBound + upperBound) / 2.0;
+    }
+
+    private static double calculateMeasurementBefore43Weeks(
+        double zScore,
+        double gestationInWeeks,
+        CentileLmsDataProvider lmsDataProvider,
+        double normalisationDivisor,
+        Logger log
+    ) {
+        double l = calculateLBefore43Weeks(gestationInWeeks, lmsDataProvider);
+        double m = calculateMBefore43Weeks(gestationInWeeks, lmsDataProvider);
+        double s = calculateSBefore43Weeks(gestationInWeeks, lmsDataProvider);
+        log.info("L: {}, M: {}, S: {}", l, m, s);
+        return calculateMeasurement(zScore, l, m, s, normalisationDivisor);
+    }
+
+    private static double calculateMeasurementAfter43Weeks(
+        double zScore,
+        double ageInYears,
+        CentileLmsDataProvider lmsDataProvider,
+        double normalisationDivisor,
+        Logger log
+    ) {
+        double l = calculateLAfter43Weeks(ageInYears, lmsDataProvider);
+        double m = calculateMAfter43Weeks(ageInYears, lmsDataProvider);
+        double s = calculateSAfter43Weeks(ageInYears, lmsDataProvider);
+        log.info("L: {}, M: {}, S: {}", l, m, s);
+        return calculateMeasurement(zScore, l, m, s, normalisationDivisor);
+    }
+
+    private static double calculateMeasurement(double zScore, double l, double m, double s, double normalisationDivisor) {
+        double measurementRatio;
+        if (Math.abs(l) < 1e-9) {
+            measurementRatio = m * Math.exp(s * zScore);
+        } else {
+            double base = 1.0 + l * s * zScore;
+            if (base <= 0.0) {
+                throw new IllegalStateException("Cannot calculate measurement for the requested centile");
+            }
+            measurementRatio = m * Math.pow(base, 1.0 / l);
+        }
+
+        return measurementRatio * normalisationDivisor;
     }
 
     private static double calculateLBefore43Weeks(double gestationInWeeks, CentileLmsDataProvider lmsDataProvider) {

@@ -4,6 +4,11 @@ import org.slf4j.Logger;
 
 public class LinearRegressionUtility {
     public static LinearRegressionResult performLinearRegression(long[] xValues, int[] yValues, Logger logger) {
+        double[] convertedYValues = java.util.Arrays.stream(yValues).asDoubleStream().toArray();
+        return performLinearRegression(xValues, convertedYValues, logger);
+    }
+
+    public static LinearRegressionResult performLinearRegression(long[] xValues, double[] yValues, Logger logger) {
         int n = xValues.length;
         if (n != yValues.length || n == 0) {
             throw new IllegalArgumentException("Input arrays must have the same non-zero length.");

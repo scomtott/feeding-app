@@ -14,6 +14,7 @@ import com.example.springboot.persistence.WeightRepository;
 import com.example.springboot.utilities.LinearRegressionResult;
 import com.example.springboot.utilities.LinearRegressionUtility;
 import com.example.springboot.utilities.NormalDistributionUtility;
+import com.example.springboot.utilities.PredictedMeasurement;
 import com.example.springboot.utilities.WeightCentileParametersData;
 
 import lombok.RequiredArgsConstructor;
@@ -61,6 +62,40 @@ public class WeightService {
         return centiles;
     }
 
+    public List<Centile> predictWeightTrendConstantCentile(int daysIntoFuture) {
+        List<WeightEntry> entries = repository.findAll(Sort.by(Sort.Direction.ASC, "date"));
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+
+        WeightEntry baselineEntry = entries.get(entries.size() - 1);
+        List<PredictedMeasurement> predictedMeasurements = NormalDistributionUtility.predictConstantCentileMeasurements(
+            baselineEntry.getWeightInGrams(),
+            baselineEntry.getDate(),
+            daysIntoFuture,
+            WeightCentileParametersData.INSTANCE,
+            "weight(g)",
+            1000.0,
+            log
+        );
+
+        List<Centile> centiles = new ArrayList<>(predictedMeasurements.size());
+        for (PredictedMeasurement predictedMeasurement : predictedMeasurements) {
+            int predictedWeight = Math.toIntExact(Math.round(predictedMeasurement.value()));
+            double centileValue = NormalDistributionUtility.calculateCentileValue(
+                predictedWeight,
+                predictedMeasurement.date(),
+                WeightCentileParametersData.INSTANCE,
+                "weight(g)",
+                1000.0,
+                log
+            );
+            centiles.add(new Centile(predictedMeasurement.date(), predictedWeight, centileValue));
+        }
+
+        return centiles;
+    }
+
     public void deleteEntry(Long id) {
         log.info("Deleting weight entry with id: {}", id);
         repository.deleteById(id);
@@ -75,6 +110,10 @@ public class WeightService {
 
     public List<Centile> predictWeightTrend(int daysIntoFuture) {
         List<WeightEntry> entries = repository.findAll(Sort.by(Sort.Direction.ASC, "date"));
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+
         long[] xValues = entries.stream().mapToLong(e -> e.getDate().toEpochDay()).toArray();
         int[] yValues = entries.stream().mapToInt(WeightEntry::getWeightInGrams).toArray();
 
