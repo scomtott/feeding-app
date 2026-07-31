@@ -172,58 +172,25 @@
             <form id="supportedFundForm" class="form-stack admin-form">
                 <div class="form-grid">
                     <label>
-                        Fund Code
-                        <input id="fundCode" type="text" placeholder="VHVG" required>
+                        Index Code
+                        <input id="adminIndexCode" type="text" placeholder="FTSE_DEV_WORLD" required>
                     </label>
                     <label>
-                        Display Name
-                        <input id="displayName" type="text" placeholder="Vanguard FTSE Developed World..." required>
+                        Start Date
+                        <input id="adminStartDate" type="date" required>
                     </label>
                     <label>
-                        Enabled
-                        <select id="fundEnabled">
-                            <option value="true">true</option>
-                            <option value="false">false</option>
-                        </select>
+                        End Date
+                        <input id="adminEndDate" type="date" required>
                     </label>
                     <label>
-                        Operation Name
-                        <input id="operationName" type="text" value="PriceDetailsQuery" required>
-                    </label>
-                    <label>
-                        Start Date Variable
-                        <input id="startDateVariable" type="text" value="startDate" required>
-                    </label>
-                    <label>
-                        End Date Variable
-                        <input id="endDateVariable" type="text" value="endDate" required>
-                    </label>
-                    <label>
-                        NAV Items Path
-                        <input id="navItemsPath" type="text" value="data.funds[0].pricingDetails.navPrices.items" required>
-                    </label>
-                    <label>
-                        Market Groups Path
-                        <input id="marketGroupsPath" type="text" value="data.funds[0].pricingDetails.marketPrices.items" required>
-                    </label>
-                    <label>
-                        Market Items Field
-                        <input id="marketItemsField" type="text" value="items" required>
+                        Port IDs (comma-separated)
+                        <input id="adminPortIds" type="text" placeholder="9675" required>
                     </label>
                 </div>
 
-                <label>
-                    GraphQL Query
-                    <textarea id="graphqlQuery" rows="6" required></textarea>
-                </label>
-
-                <label>
-                    Variables JSON
-                    <textarea id="variablesJson" rows="4">{}</textarea>
-                </label>
-
                 <div class="inline-actions">
-                    <button class="btn" type="submit">Create/Update Supported Fund</button>
+                    <button class="btn" type="submit">Create/Update Supported Funds</button>
                 </div>
             </form>
 
@@ -233,13 +200,14 @@
                         <tr>
                             <th>Code</th>
                             <th>Name</th>
+                            <th>Index Code</th>
                             <th>Enabled</th>
-                            <th>Operation</th>
+                            <th>Port IDs</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="adminFundsTableBody">
-                        <tr><td colspan="5" class="muted">No data loaded.</td></tr>
+                        <tr><td colspan="6" class="muted">No data loaded.</td></tr>
                     </tbody>
                 </table>
             </div>

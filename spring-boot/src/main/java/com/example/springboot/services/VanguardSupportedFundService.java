@@ -1,10 +1,12 @@
 package com.example.springboot.services;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ArrayList;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,12 +27,22 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class VanguardSupportedFundService {
 
+    private static final String DEFAULT_OPERATION_NAME = "PriceDetailsQuery";
+    private static final String DEFAULT_QUERY =
+        "query PriceDetailsQuery($portIds: [String!]!, $startDate: String!, $endDate: String!, $limit: Float) { "
+            + "funds(portIds: $portIds) { pricingDetails { "
+            + "navPrices(startDate: $startDate, endDate: $endDate, limit: $limit) { "
+            + "items { price asOfDate currencyCode __typename } __typename } "
+            + "marketPrices(startDate: $startDate, endDate: $endDate, limit: $limit) { "
+            + "items { portId items { price asOfDate currencyCode __typename } __typename } __typename } "
+            + "__typename } __typename } }";
+
     private final VanguardSupportedFundRepository repository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public List<InvestmentSupportedFund> getEnabledSupportedFunds() {
         return repository.findByEnabledTrueOrderByCodeAsc().stream()
-            .map(entry -> new InvestmentSupportedFund(entry.getCode(), entry.getDisplayName()))
+            .map(entry -> new InvestmentSupportedFund(entry.getCode(), entry.getDisplayName(), entry.getIndexCode()))
             .toList();
     }
 
@@ -49,31 +61,40 @@ public class VanguardSupportedFundService {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
         }
-        if (!StringUtils.hasText(request.code())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "code is required");
-        }
-        if (!StringUtils.hasText(request.displayName())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "displayName is required");
-        }
-        if (!StringUtils.hasText(request.operationName())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "operationName is required");
-        }
-        if (!StringUtils.hasText(request.query())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "query is required");
+
+        List<String> normalizedPortIds = normalizePortIds(request.portIds());
+        if (normalizedPortIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "portIds is required");
         }
 
-        String code = request.code().trim().toUpperCase(Locale.ROOT);
+        String code = StringUtils.hasText(request.code())
+            ? request.code().trim().toUpperCase(Locale.ROOT)
+            : normalizedPortIds.get(0);
+        String displayName = StringUtils.hasText(request.displayName())
+            ? request.displayName().trim()
+            : code;
+        if (!StringUtils.hasText(request.indexCode())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "indexCode is required");
+        }
+        String indexCode = request.indexCode().trim().toUpperCase(Locale.ROOT);
+
         VanguardSupportedFundEntry existing = repository.findByCode(code).orElse(null);
         VanguardSupportedFundEntry entry = existing == null ? new VanguardSupportedFundEntry() : existing;
 
         entry.setCode(code);
-        entry.setDisplayName(request.displayName().trim());
+        entry.setDisplayName(displayName);
+        entry.setIndexCode(indexCode);
         entry.setEnabled(request.enabled() == null || request.enabled());
-        entry.setStartDateVariable(defaultIfBlank(request.startDateVariable(), "startDate"));
-        entry.setEndDateVariable(defaultIfBlank(request.endDateVariable(), "endDate"));
-        entry.setOperationName(request.operationName().trim());
-        entry.setQuery(request.query());
-        entry.setVariablesJson(serializeVariables(request.variables()));
+        entry.setStartDateVariable("startDate");
+        entry.setEndDateVariable("endDate");
+        entry.setOperationName(DEFAULT_OPERATION_NAME);
+        entry.setQuery(DEFAULT_QUERY);
+        entry.setVariablesJson(serializeVariables(buildVariables(
+            request.variables(),
+            normalizedPortIds,
+            request.startDate(),
+            request.endDate()
+        )));
         entry.setNavItemsPath(defaultIfBlank(request.navItemsPath(), "data.funds[0].pricingDetails.navPrices.items"));
         entry.setMarketGroupsPath(defaultIfBlank(request.marketGroupsPath(), "data.funds[0].pricingDetails.marketPrices.items"));
         entry.setMarketItemsField(defaultIfBlank(request.marketItemsField(), "items"));
@@ -98,6 +119,7 @@ public class VanguardSupportedFundService {
         return new SupportedFundDefinition(
             entry.getCode(),
             entry.getDisplayName(),
+            entry.getIndexCode(),
             entry.getStartDateVariable(),
             entry.getEndDateVariable(),
             entry.getOperationName(),
@@ -133,9 +155,46 @@ public class VanguardSupportedFundService {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
+    private List<String> normalizePortIds(List<String> rawPortIds) {
+        if (rawPortIds == null) {
+            return List.of();
+        }
+
+        List<String> normalized = new ArrayList<>();
+        for (String value : rawPortIds) {
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            normalized.add(value.trim().toUpperCase(Locale.ROOT));
+        }
+        return normalized;
+    }
+
+    private Map<String, Object> buildVariables(
+        Map<String, Object> existingVariables,
+        List<String> portIds,
+        LocalDate startDate,
+        LocalDate endDate
+    ) {
+        Map<String, Object> variables = existingVariables == null
+            ? new LinkedHashMap<>()
+            : new LinkedHashMap<>(existingVariables);
+
+        variables.put("portIds", portIds);
+        variables.putIfAbsent("limit", 0);
+        if (startDate != null) {
+            variables.put("startDate", startDate.toString());
+        }
+        if (endDate != null) {
+            variables.put("endDate", endDate.toString());
+        }
+        return variables;
+    }
+
     public record SupportedFundDefinition(
         String code,
         String displayName,
+        String indexCode,
         String startDateVariable,
         String endDateVariable,
         String operationName,

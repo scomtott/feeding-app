@@ -99,12 +99,14 @@ async function loadAllSupportedFunds() {
 
     const rows = data.map(fund => {
         const enabledText = fund.enabled ? 'true' : 'false';
+        const portIds = extractPortIds(fund.variablesJson).join(', ');
         return `
             <tr>
                 <td>${fund.code}</td>
                 <td>${fund.displayName}</td>
+                <td>${fund.indexCode || ''}</td>
                 <td>${enabledText}</td>
-                <td>${fund.operationName}</td>
+                <td>${portIds || '-'}</td>
                 <td>
                     <div class="row-actions">
                         <button type="button" class="btn btn-secondary" onclick="prefillSupportedFundForm('${fund.code}')">Edit</button>
@@ -115,7 +117,7 @@ async function loadAllSupportedFunds() {
         `;
     });
 
-    setTableRows('adminFundsTableBody', rows, 5, 'No supported funds found.');
+    setTableRows('adminFundsTableBody', rows, 6, 'No supported funds found.');
 
     window.__allSupportedFunds = data;
 }
@@ -127,19 +129,36 @@ function prefillSupportedFundForm(code) {
         return;
     }
 
-    document.getElementById('fundCode').value = fund.code || '';
-    document.getElementById('displayName').value = fund.displayName || '';
-    document.getElementById('fundEnabled').value = fund.enabled ? 'true' : 'false';
-    document.getElementById('operationName').value = fund.operationName || '';
-    document.getElementById('startDateVariable').value = fund.startDateVariable || 'startDate';
-    document.getElementById('endDateVariable').value = fund.endDateVariable || 'endDate';
-    document.getElementById('navItemsPath').value = fund.navItemsPath || 'data.funds[0].pricingDetails.navPrices.items';
-    document.getElementById('marketGroupsPath').value = fund.marketGroupsPath || 'data.funds[0].pricingDetails.marketPrices.items';
-    document.getElementById('marketItemsField').value = fund.marketItemsField || 'items';
-    document.getElementById('graphqlQuery').value = fund.query || '';
-    document.getElementById('variablesJson').value = fund.variablesJson || '{}';
+    const variables = parseVariablesJson(fund.variablesJson);
+    const portIds = Array.isArray(variables.portIds) ? variables.portIds : [];
 
-    setStatus(`Loaded ${code} into form for editing.`);
+    document.getElementById('adminIndexCode').value = fund.indexCode || '';
+    document.getElementById('adminPortIds').value = portIds.join(', ');
+    document.getElementById('adminStartDate').value = variables.startDate || '';
+    document.getElementById('adminEndDate').value = variables.endDate || '';
+
+    setStatus(`Loaded ${code} into admin form.`);
+}
+
+function parseVariablesJson(variablesJson) {
+    if (!variablesJson) {
+        return {};
+    }
+
+    try {
+        const parsed = JSON.parse(variablesJson);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return {};
+        }
+        return parsed;
+    } catch {
+        return {};
+    }
+}
+
+function extractPortIds(variablesJson) {
+    const parsed = parseVariablesJson(variablesJson);
+    return Array.isArray(parsed.portIds) ? parsed.portIds : [];
 }
 
 async function deleteSupportedFund(code) {
@@ -279,32 +298,25 @@ async function queryPrices(event) {
 async function upsertSupportedFund(event) {
     event.preventDefault();
 
-    let parsedVariables = {};
-    const variablesText = document.getElementById('variablesJson').value.trim();
+    const indexCode = document.getElementById('adminIndexCode').value.trim();
+    if (!indexCode) {
+        throw new Error('Index code is required.');
+    }
 
-    if (variablesText) {
-        try {
-            parsedVariables = JSON.parse(variablesText);
-            if (typeof parsedVariables !== 'object' || Array.isArray(parsedVariables)) {
-                throw new Error('Variables must be a JSON object.');
-            }
-        } catch (error) {
-            throw new Error(`Invalid variables JSON: ${error.message}`);
-        }
+    const portIds = document.getElementById('adminPortIds').value
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
+
+    if (!portIds.length) {
+        throw new Error('At least one port ID is required.');
     }
 
     const payload = {
-        code: document.getElementById('fundCode').value.trim(),
-        displayName: document.getElementById('displayName').value.trim(),
-        enabled: document.getElementById('fundEnabled').value === 'true',
-        startDateVariable: document.getElementById('startDateVariable').value.trim(),
-        endDateVariable: document.getElementById('endDateVariable').value.trim(),
-        operationName: document.getElementById('operationName').value.trim(),
-        query: document.getElementById('graphqlQuery').value,
-        variables: parsedVariables,
-        navItemsPath: document.getElementById('navItemsPath').value.trim(),
-        marketGroupsPath: document.getElementById('marketGroupsPath').value.trim(),
-        marketItemsField: document.getElementById('marketItemsField').value.trim()
+        indexCode,
+        startDate: document.getElementById('adminStartDate').value,
+        endDate: document.getElementById('adminEndDate').value,
+        portIds
     };
 
     await requestJson(supportedFundsEndpoint, {
@@ -313,7 +325,7 @@ async function upsertSupportedFund(event) {
         body: JSON.stringify(payload)
     });
 
-    setStatus(`Saved supported fund ${payload.code.toUpperCase()}.`);
+    setStatus(`Saved supported fund using port IDs: ${portIds.join(', ')}.`);
     await refreshFundData();
 }
 
@@ -322,10 +334,8 @@ function initializeDefaults() {
     document.getElementById('historyStartDate').value = today;
     document.getElementById('historyEndDate').value = today;
     document.getElementById('unitsDate').value = today;
-
-    const sampleQuery = 'query PriceDetailsQuery($portIds: [String!]!, $startDate: String!, $endDate: String!, $limit: Float) { funds(portIds: $portIds) { pricingDetails { navPrices(startDate: $startDate, endDate: $endDate, limit: $limit) { items { price asOfDate currencyCode } } marketPrices(startDate: $startDate, endDate: $endDate, limit: $limit) { items { portId items { price asOfDate currencyCode } } } } } }';
-
-    document.getElementById('graphqlQuery').value = sampleQuery;
+    document.getElementById('adminStartDate').value = today;
+    document.getElementById('adminEndDate').value = today;
 }
 
 async function initializePage() {

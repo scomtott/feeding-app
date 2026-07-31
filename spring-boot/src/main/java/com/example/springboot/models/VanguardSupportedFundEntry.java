@@ -28,6 +28,9 @@ public class VanguardSupportedFundEntry {
     private String displayName;
 
     @Column(nullable = false)
+    private String indexCode;
+
+    @Column(nullable = false)
     private boolean enabled = true;
 
     @Column(nullable = false)
@@ -77,6 +80,14 @@ public class VanguardSupportedFundEntry {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getIndexCode() {
+        return indexCode;
+    }
+
+    public void setIndexCode(String indexCode) {
+        this.indexCode = indexCode;
     }
 
     public boolean isEnabled() {
