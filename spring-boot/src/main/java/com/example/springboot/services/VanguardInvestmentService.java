@@ -89,7 +89,7 @@ public class VanguardInvestmentService {
 
             messages.add(String.format(
                 "Fund %s: %d prices fetched (%d inserted, %d updated)",
-                fund.code,
+                fund.code(),
                 extractedPrices.size(),
                 fundInserted,
                 fundUpdated
@@ -143,7 +143,7 @@ public class VanguardInvestmentService {
             .toList();
 
         return configuredFunds.stream()
-            .filter(fund -> normalizedCodes.contains(fund.code.toUpperCase()))
+            .filter(fund -> normalizedCodes.contains(fund.code().toUpperCase()))
             .toList();
     }
 
