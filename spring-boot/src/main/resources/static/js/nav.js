@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const navItems = [
             { href: 'dashboard.html', label: 'Dashboard' },
             { href: 'feeding.html', label: 'Feeding' },
+            { href: 'investments.html', label: 'Investments' },
             { href: 'journal.html', label: 'Journal' },
             { href: 'pumping.html', label: 'Pumping' },
             { href: 'weight-tracker.html', label: 'Weight Tracker' },

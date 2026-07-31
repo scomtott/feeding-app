@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investments Dashboard</title>
+    <link rel="stylesheet" href="../css/investments.css">
+    <script src="../js/logger.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <header class="hero">
+            <p class="eyebrow">Personal Finance</p>
+            <h1>Investments Dashboard</h1>
+            <p class="hero-subtitle">Manage supported funds, import Vanguard prices, and track units held over time.</p>
+            <div id="statusBanner" class="status-banner">Ready.</div>
+        </header>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Enabled Supported Funds</h2>
+                <button id="refreshSupportedBtn" class="btn btn-secondary" type="button">Refresh</button>
+            </div>
+            <div id="enabledFundsPills" class="pill-wrap"></div>
+        </section>
+
+        <section class="panel grid-2">
+            <div>
+                <h2>Price Import</h2>
+                <div class="inline-actions">
+                    <button id="importDailyBtn" class="btn" type="button">Run Daily Import</button>
+                </div>
+                <form id="historicalImportForm" class="form-stack">
+                    <h3>Manual Historical Import</h3>
+                    <div class="form-grid">
+                        <label>
+                            Start Date
+                            <input id="historyStartDate" type="date" required>
+                        </label>
+                        <label>
+                            End Date
+                            <input id="historyEndDate" type="date" required>
+                        </label>
+                    </div>
+                    <label>
+                        Fund Codes (optional, comma-separated)
+                        <input id="historyFundCodes" type="text" placeholder="VHVG, VUSA">
+                    </label>
+                    <button class="btn" type="submit">Import Historical Prices</button>
+                </form>
+                <pre id="importResult" class="result-box">No import run yet.</pre>
+            </div>
+
+            <div>
+                <h2>Record Units Held</h2>
+                <form id="unitsForm" class="form-stack">
+                    <div class="form-grid">
+                        <label>
+                            Date
+                            <input id="unitsDate" type="date" required>
+                        </label>
+                        <label>
+                            Fund
+                            <select id="unitsFundCode" required></select>
+                        </label>
+                    </div>
+                    <label>
+                        Units Held
+                        <input id="unitsHeld" type="number" min="0" step="0.000001" required>
+                    </label>
+                    <button class="btn" type="submit">Save Units</button>
+                </form>
+                <pre id="unitsResult" class="result-box">No units submission yet.</pre>
+            </div>
+        </section>
+
+        <section class="panel grid-2">
+            <div>
+                <h2>Holdings Query</h2>
+                <form id="holdingsQueryForm" class="form-stack">
+                    <div class="form-grid">
+                        <label>
+                            Fund (optional)
+                            <select id="holdingsFundCode">
+                                <option value="">All enabled funds</option>
+                            </select>
+                        </label>
+                        <label>
+                            Start Date
+                            <input id="holdingsStartDate" type="date">
+                        </label>
+                        <label>
+                            End Date
+                            <input id="holdingsEndDate" type="date">
+                        </label>
+                    </div>
+                    <button class="btn btn-secondary" type="submit">Load Holdings</button>
+                </form>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Fund</th>
+                                <th>Units</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdingsTableBody">
+                            <tr><td colspan="4" class="muted">No data loaded.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <h2>Price Query</h2>
+                <form id="pricesQueryForm" class="form-stack">
+                    <div class="form-grid">
+                        <label>
+                            Fund (optional)
+                            <select id="pricesFundCode">
+                                <option value="">All enabled funds</option>
+                            </select>
+                        </label>
+                        <label>
+                            Price Type
+                            <select id="priceType">
+                                <option value="">All</option>
+                                <option value="NAV">NAV</option>
+                                <option value="MARKET">MARKET</option>
+                            </select>
+                        </label>
+                        <label>
+                            Start Date
+                            <input id="pricesStartDate" type="date">
+                        </label>
+                        <label>
+                            End Date
+                            <input id="pricesEndDate" type="date">
+                        </label>
+                    </div>
+                    <button class="btn btn-secondary" type="submit">Load Prices</button>
+                </form>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Fund</th>
+                                <th>Type</th>
+                                <th>Price</th>
+                                <th>Currency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pricesTableBody">
+                            <tr><td colspan="5" class="muted">No data loaded.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Supported Funds Admin</h2>
+                <button id="refreshAdminBtn" class="btn btn-secondary" type="button">Refresh Admin Data</button>
+            </div>
+
+            <form id="supportedFundForm" class="form-stack admin-form">
+                <div class="form-grid">
+                    <label>
+                        Fund Code
+                        <input id="fundCode" type="text" placeholder="VHVG" required>
+                    </label>
+                    <label>
+                        Display Name
+                        <input id="displayName" type="text" placeholder="Vanguard FTSE Developed World..." required>
+                    </label>
+                    <label>
+                        Enabled
+                        <select id="fundEnabled">
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                    <label>
+                        Operation Name
+                        <input id="operationName" type="text" value="PriceDetailsQuery" required>
+                    </label>
+                    <label>
+                        Start Date Variable
+                        <input id="startDateVariable" type="text" value="startDate" required>
+                    </label>
+                    <label>
+                        End Date Variable
+                        <input id="endDateVariable" type="text" value="endDate" required>
+                    </label>
+                    <label>
+                        NAV Items Path
+                        <input id="navItemsPath" type="text" value="data.funds[0].pricingDetails.navPrices.items" required>
+                    </label>
+                    <label>
+                        Market Groups Path
+                        <input id="marketGroupsPath" type="text" value="data.funds[0].pricingDetails.marketPrices.items" required>
+                    </label>
+                    <label>
+                        Market Items Field
+                        <input id="marketItemsField" type="text" value="items" required>
+                    </label>
+                </div>
+
+                <label>
+                    GraphQL Query
+                    <textarea id="graphqlQuery" rows="6" required></textarea>
+                </label>
+
+                <label>
+                    Variables JSON
+                    <textarea id="variablesJson" rows="4">{}</textarea>
+                </label>
+
+                <div class="inline-actions">
+                    <button class="btn" type="submit">Create/Update Supported Fund</button>
+                </div>
+            </form>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Enabled</th>
+                            <th>Operation</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminFundsTableBody">
+                        <tr><td colspan="5" class="muted">No data loaded.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="../js/nav.js"></script>
+    <script src="../js/investments.js"></script>
+</body>
+</html>
