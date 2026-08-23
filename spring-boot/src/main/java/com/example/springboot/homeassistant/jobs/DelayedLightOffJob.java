@@ -8,6 +8,7 @@ import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.example.springboot.homeassistant.automations.BathroomOccupancyAutomation;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.services.DelayedActionService;
 import com.example.springboot.homeassistant.services.LightBrightnessService;
@@ -35,6 +36,9 @@ public class DelayedLightOffJob implements Job {
     @Autowired
     private DelayedActionService delayedActionService;
 
+    @Autowired(required = false)
+    private BathroomOccupancyAutomation bathroomOccupancyAutomation;
+
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         JobDataMap dataMap = context.getMergedJobDataMap();
@@ -48,6 +52,11 @@ public class DelayedLightOffJob implements Job {
 
         if (lightEntityId == null || lightEntityId.isBlank()) {
             log.warn("Skipping delayed light off action with missing lightEntityId");
+            return;
+        }
+
+        if (bathroomOccupancyAutomation != null && bathroomOccupancyAutomation.isManualLeaseActiveForLight(lightEntityId)) {
+            log.info("Skipping delayed turn-off for {} while bathroom manual lease is active", lightEntityId);
             return;
         }
 

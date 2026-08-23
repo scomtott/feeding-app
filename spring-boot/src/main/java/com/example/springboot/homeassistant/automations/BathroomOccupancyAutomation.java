@@ -135,9 +135,6 @@ public class BathroomOccupancyAutomation {
         if (newState == null || newState.entityId() == null) {
             return;
         }
-        if (oldState == null) {
-            return;
-        }
 
         String normalizedConfiguredLight = normalizeLightEntityId(configuredLight);
         if (!normalizedConfiguredLight.equalsIgnoreCase(normalizeLightEntityId(newState.entityId()))) {
@@ -146,7 +143,7 @@ public class BathroomOccupancyAutomation {
 
         boolean oldOn = oldState != null && "on".equalsIgnoreCase(oldState.state());
         boolean newOn = "on".equalsIgnoreCase(newState.state());
-        boolean contextChanged = !Objects.equals(contextId(oldState), contextId(newState));
+        boolean contextChanged = oldState == null || !Objects.equals(contextId(oldState), contextId(newState));
 
         if (!newOn) {
             pendingMotionTurnOnAckUntil.set(null);
@@ -196,6 +193,19 @@ public class BathroomOccupancyAutomation {
 
         pendingMotionTurnOnAckUntil.set(null);
         return clearManualLeaseInternal();
+    }
+
+    public boolean isManualLeaseActiveForLight(String entityId) {
+        String configuredLight = properties.getLightEntityId();
+        if (configuredLight == null || configuredLight.isBlank() || entityId == null || entityId.isBlank()) {
+            return false;
+        }
+
+        if (!normalizeLightEntityId(configuredLight).equalsIgnoreCase(normalizeLightEntityId(entityId))) {
+            return false;
+        }
+
+        return hasActiveManualLease();
     }
 
     private void activateManualLease(String normalizedLightEntityId) {

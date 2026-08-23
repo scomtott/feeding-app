@@ -103,6 +103,51 @@ class BathroomOccupancyAutomationTest {
     }
 
     @Test
+    void manualTurnOnWithMissingOldStateStillActivatesLease() {
+        automation.handleBathroomLightStateChanged(lightStateChangedEvent(
+            null,
+            lightState("on")
+        ));
+
+        String actionKey = actionKey();
+        verify(delayedActionService).cancel(actionKey);
+        assertNotNull(automation.getActiveManualLease());
+
+        reset(delayedActionService, lightBrightnessService);
+
+        automation.onOccupancyChanged(new OccupancyStateChangedEvent(SENSOR_ENTITY_ID, true));
+
+        verify(delayedActionService).cancel(actionKey);
+        verify(delayedActionService, never()).scheduleTurnOffLight(actionKey, LIGHT_ENTITY_ID, Duration.ofSeconds(300));
+        verifyNoInteractions(lightBrightnessService);
+    }
+
+    @Test
+    void leaseClearsWhenTurnOffEventHasMissingOldState() {
+        automation.handleBathroomLightStateChanged(lightStateChangedEvent(
+            lightState("off"),
+            lightState("on")
+        ));
+        assertNotNull(automation.getActiveManualLease());
+
+        reset(delayedActionService, lightBrightnessService);
+
+        automation.handleBathroomLightStateChanged(lightStateChangedEvent(
+            null,
+            lightState("off")
+        ));
+        assertNull(automation.getActiveManualLease());
+
+        reset(delayedActionService, lightBrightnessService);
+
+        automation.onOccupancyChanged(new OccupancyStateChangedEvent(SENSOR_ENTITY_ID, true));
+
+        String actionKey = actionKey();
+        verify(delayedActionService).cancel(actionKey);
+        verify(delayedActionService).scheduleTurnOffLight(actionKey, LIGHT_ENTITY_ID, Duration.ofSeconds(300));
+    }
+
+    @Test
     void occupancyTriggeredTurnOnDoesNotActivateManualLease() {
         automation.onOccupancyChanged(new OccupancyStateChangedEvent(SENSOR_ENTITY_ID, true));
 
