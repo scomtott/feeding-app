@@ -9,6 +9,20 @@
         currentDate: null,
         mode: 'browse'
     };
+    const MAX_MEDIA_UPLOAD_BYTES = 50 * 1024 * 1024;
+    const ALLOWED_UPLOAD_MEDIA_TYPES = new Set([
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'image/bmp',
+        'video/mp4',
+        'video/webm',
+        'video/ogg',
+        'video/quicktime',
+        'video/x-m4v'
+    ]);
+    const VIDEO_FILE_EXTENSIONS = new Set(['.mp4', '.webm', '.ogg', '.ogv', '.mov', '.m4v']);
 
     const entryDateInput = document.getElementById('entry-date');
     const monthPicker = document.getElementById('month-picker');
@@ -28,15 +42,25 @@
     const backupFilesScanned = document.getElementById('backup-files-scanned');
     const backupFilesUploaded = document.getElementById('backup-files-uploaded');
     const triggerBackupButton = document.getElementById('trigger-backup');
+    const uploadImageButton = document.getElementById('upload-image');
+    const dayStepButtons = document.querySelectorAll('.day-step-button');
 
     document.getElementById('load-today').addEventListener('click', () => setCurrentDate(toIsoDate(new Date())));
-    document.getElementById('prev-day').addEventListener('click', async () => stepDay(-1));
-    document.getElementById('next-day').addEventListener('click', async () => stepDay(1));
     document.getElementById('save-entry').addEventListener('click', saveCurrentEntry);
-    document.getElementById('upload-image').addEventListener('click', uploadImageForCurrentDate);
+    uploadImageButton.addEventListener('click', uploadImageForCurrentDate);
     triggerBackupButton.addEventListener('click', triggerBackupNow);
     browseModeButton.addEventListener('click', () => setMode('browse'));
     editModeButton.addEventListener('click', () => setMode('edit'));
+    dayStepButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const dayStep = Number(button.dataset.dayStep);
+            if (!Number.isInteger(dayStep) || dayStep === 0) {
+                return;
+            }
+
+            await stepDay(dayStep);
+        });
+    });
 
     entryDateInput.addEventListener('change', async () => {
         await setCurrentDate(entryDateInput.value);
@@ -282,35 +306,70 @@
             return;
         }
 
-        const image = imageInput.files?.[0];
-        if (!image) {
-            setStatus('Choose an image file first.', '#c62828');
+        const mediaFiles = Array.from(imageInput.files || []);
+        if (mediaFiles.length === 0) {
+            setStatus('Choose one or more files first.', '#c62828');
             return;
         }
 
-        const formData = new FormData();
-        formData.append('date', state.currentDate);
-        formData.append('image', image);
+        for (const mediaFile of mediaFiles) {
+            const validationError = getUploadValidationError(mediaFile);
+            if (validationError) {
+                setStatus('"' + getImageDisplayName(mediaFile) + '": ' + validationError, '#c62828');
+                return;
+            }
+        }
+
+        uploadImageButton.disabled = true;
+        imageInput.disabled = true;
 
         try {
-            const response = await fetch('/api/journal/images', {
-                method: 'POST',
-                body: formData
-            });
+            for (let index = 0; index < mediaFiles.length; index += 1) {
+                const mediaFile = mediaFiles[index];
+                const imageName = getImageDisplayName(mediaFile);
+                setStatus(
+                    'Uploading file '
+                        + (index + 1)
+                        + ' of '
+                        + mediaFiles.length
+                        + ': "'
+                        + imageName
+                        + '" ('
+                        + formatFileSize(mediaFile.size)
+                        + ')...',
+                    '#1565c0'
+                );
 
-            if (!response.ok) {
-                const errorBody = await safeReadJson(response);
-                throw new Error(errorBody?.error || ('Upload failed: HTTP ' + response.status));
+                const formData = new FormData();
+                formData.append('date', state.currentDate);
+                formData.append('image', mediaFile);
+
+                const response = await fetch('/api/journal/images', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorBody = await safeReadJson(response);
+                    throw new Error('Failed on "' + imageName + '": ' + getUploadErrorMessage(response.status, errorBody));
+                }
+                const data = await response.json();
+                insertAtCursor(markdownEditor, data.markdown + '\n');
             }
 
-            const data = await response.json();
-            insertAtCursor(markdownEditor, data.markdown + '\n');
             renderMarkdown(markdownEditor.value);
             imageInput.value = '';
-            setStatus('Image uploaded and markdown link inserted.', '#2e7d32');
+            if (mediaFiles.length === 1) {
+                setStatus('File uploaded and markdown link inserted.', '#2e7d32');
+            } else {
+                setStatus(String(mediaFiles.length) + ' files uploaded and markdown links inserted in selection order.', '#2e7d32');
+            }
         } catch (error) {
-            window.appLogger?.error('Failed uploading journal image', { error: error.message, date: state.currentDate });
+            window.appLogger?.error('Failed uploading journal media', { error: error.message, date: state.currentDate });
             setStatus(error.message, '#c62828');
+        } finally {
+            uploadImageButton.disabled = false;
+            imageInput.disabled = false;
         }
     }
 
@@ -333,8 +392,11 @@
         }
 
         const dirtyHtml = md.render(markdown);
-        renderedEntry.innerHTML = window.DOMPurify.sanitize(dirtyHtml, {
-            USE_PROFILES: { html: true }
+        const htmlWithVideoSupport = convertVideoLinksToPlayers(dirtyHtml);
+        renderedEntry.innerHTML = window.DOMPurify.sanitize(htmlWithVideoSupport, {
+            USE_PROFILES: { html: true },
+            ADD_TAGS: ['video', 'source'],
+            ADD_ATTR: ['controls', 'preload', 'playsinline', 'src', 'type']
         });
     }
 
@@ -343,11 +405,159 @@
         statusMessage.style.color = color;
     }
 
+    function getUploadValidationError(image) {
+        if (!image || image.size === 0) {
+            return 'File is empty.';
+        }
+
+        const imageType = (image.type || '').toLowerCase();
+        if (!ALLOWED_UPLOAD_MEDIA_TYPES.has(imageType)) {
+            return 'Unsupported file type. Use JPG, PNG, GIF, WEBP, BMP, MP4, WEBM, OGG, MOV, or M4V.';
+        }
+
+        if (image.size > MAX_MEDIA_UPLOAD_BYTES) {
+            return 'File is too large (' + formatFileSize(image.size) + '). Max file size is 50MB.';
+        }
+
+        return null;
+    }
+
+    function getImageDisplayName(image) {
+        if (!image) {
+            return 'image';
+        }
+
+        return image.name || 'image';
+    }
+
+    function getUploadErrorMessage(status, errorBody) {
+        if (errorBody?.error) {
+            return errorBody.error;
+        }
+
+        if (status === 413) {
+            return 'Upload failed: file is too large. Max file size is 50MB.';
+        }
+
+        if (status === 415 || status === 400) {
+            return 'Upload failed: unsupported or invalid file. Use JPG, PNG, GIF, WEBP, BMP, MP4, WEBM, OGG, MOV, or M4V.';
+        }
+
+        return 'Upload failed: HTTP ' + status;
+    }
+
+    function formatFileSize(bytes) {
+        if (!Number.isFinite(bytes) || bytes < 0) {
+            return '0 B';
+        }
+
+        const mb = bytes / (1024 * 1024);
+        if (mb >= 1) {
+            return mb.toFixed(mb >= 10 ? 0 : 1) + ' MB';
+        }
+
+        const kb = bytes / 1024;
+        if (kb >= 1) {
+            return kb.toFixed(1) + ' KB';
+        }
+
+        return bytes + ' B';
+    }
+
     async function safeReadJson(response) {
         try {
             return await response.json();
         } catch (error) {
             return null;
         }
+    }
+
+    function convertVideoLinksToPlayers(html) {
+        const template = document.createElement('template');
+        template.innerHTML = html;
+
+        template.content.querySelectorAll('img[src]').forEach(imageElement => {
+            const sourceUrl = imageElement.getAttribute('src');
+            if (!isVideoUrl(sourceUrl)) {
+                return;
+            }
+
+            imageElement.replaceWith(createVideoElement(sourceUrl));
+        });
+
+        template.content.querySelectorAll('a[href]').forEach(anchorElement => {
+            const href = anchorElement.getAttribute('href');
+            if (!isVideoUrl(href) || !href.includes('/journal-media/')) {
+                return;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'journal-video-link';
+            container.appendChild(createVideoElement(href));
+
+            const link = document.createElement('a');
+            link.href = href;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = anchorElement.textContent?.trim() || 'Open video in new tab';
+            container.appendChild(link);
+
+            anchorElement.replaceWith(container);
+        });
+
+        return template.innerHTML;
+    }
+
+    function createVideoElement(sourceUrl) {
+        const videoElement = document.createElement('video');
+        videoElement.controls = true;
+        videoElement.preload = 'metadata';
+        videoElement.playsInline = true;
+
+        const sourceElement = document.createElement('source');
+        sourceElement.src = sourceUrl;
+        const contentType = getVideoContentTypeFromUrl(sourceUrl);
+        if (contentType) {
+            sourceElement.type = contentType;
+        }
+        videoElement.appendChild(sourceElement);
+        return videoElement;
+    }
+
+    function isVideoUrl(url) {
+        if (!url) {
+            return false;
+        }
+
+        const normalizedUrl = url.split('#')[0].split('?')[0].toLowerCase();
+        for (const extension of VIDEO_FILE_EXTENSIONS) {
+            if (normalizedUrl.endsWith(extension)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function getVideoContentTypeFromUrl(url) {
+        if (!url) {
+            return null;
+        }
+
+        const normalizedUrl = url.split('#')[0].split('?')[0].toLowerCase();
+        if (normalizedUrl.endsWith('.mp4') || normalizedUrl.endsWith('.m4v')) {
+            return 'video/mp4';
+        }
+        if (normalizedUrl.endsWith('.webm')) {
+            return 'video/webm';
+        }
+        if (normalizedUrl.endsWith('.ogg') || normalizedUrl.endsWith('.ogv')) {
+            return 'video/ogg';
+        }
+        if (normalizedUrl.endsWith('.mov')) {
+            return 'video/quicktime';
+        }
+
+        return null;
     }
 })();

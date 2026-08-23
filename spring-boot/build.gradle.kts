@@ -28,9 +28,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.hibernate.orm:hibernate-community-dialects")
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
-	compileOnly("org.projectlombok:lombok")
+    implementation("org.apache.pdfbox:pdfbox:3.0.3")
+    compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
-	implementation("org.quartz-scheduler:quartz")
+    implementation("org.quartz-scheduler:quartz")
 	implementation("org.quartz-scheduler:quartz-jobs")
 	}
 

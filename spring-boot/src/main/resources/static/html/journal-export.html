@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal PDF Export</title>
+    <link rel="stylesheet" href="../css/journal-export.css?v=1">
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <h1>Journal PDF Export</h1>
+        <p class="intro">Download your journal as a rendered PDF. Leave both dates empty to export all entries.</p>
+
+        <section class="panel">
+            <h2>Export Range</h2>
+            <form id="export-form" class="form-grid">
+                <label for="from-date">From Date (optional)</label>
+                <input id="from-date" name="from" type="date">
+
+                <label for="to-date">To Date (optional)</label>
+                <input id="to-date" name="to" type="date">
+
+                <div class="button-row">
+                    <button type="submit" id="start-range-export">Start Export</button>
+                    <button type="button" class="btn-secondary" id="start-all-export">Export All</button>
+                    <button type="button" class="btn-secondary" id="download-completed" disabled>Download Completed PDF</button>
+                </div>
+            </form>
+            <p id="status-message" class="status-message"></p>
+            <p id="active-job" class="active-job"></p>
+            <p class="hint">
+                Range rules: from only = from to latest entry, to only = earliest entry to to, both = inclusive range.
+            </p>
+        </section>
+    </div>
+
+    <script src="../js/logger.js"></script>
+    <script src="../js/nav.js?v=3"></script>
+    <script src="../js/journal-export.js?v=2"></script>
+</body>
+</html>

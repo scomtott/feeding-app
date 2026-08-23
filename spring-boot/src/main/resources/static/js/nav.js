@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { href: 'feeding.html', label: 'Feeding' },
             { href: 'investments.html', label: 'Investments' },
             { href: 'journal.html', label: 'Journal' },
+            { href: 'journal-export.html', label: 'Journal Export' },
             { href: 'pumping.html', label: 'Pumping' },
             { href: 'weight-tracker.html', label: 'Weight Tracker' },
             { href: 'length-tracker.html', label: 'Length Tracker' },

@@ -16,6 +16,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.example.springboot.homeassistant.properties.HomeAssistantProperties;
+import com.example.springboot.homeassistant.automations.BathroomOccupancyAutomation;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.models.BinarySensorEntity;
 import com.example.springboot.homeassistant.models.SensorEntity;
@@ -42,6 +43,7 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
     public HomeAssistantWebSocketHandler(
         HomeAssistantProperties properties,
         LightBrightnessService brightnessService,
+        BathroomOccupancyAutomation bathroomOccupancyAutomation,
         BinarySensorService binarySensorService,
         SensorService sensorService,
         ObjectMapper mapper,
@@ -56,7 +58,10 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
             new DomainEventRoute<>(
                 new TypeReference<HaWsStateChangedEvent<LightEntity>>() {
                 },
-                brightnessService::handleLightStateChanged
+                event -> {
+                    brightnessService.handleLightStateChanged(event);
+                    bathroomOccupancyAutomation.handleBathroomLightStateChanged(event);
+                }
             ),
             "binary_sensor",
             new DomainEventRoute<>(

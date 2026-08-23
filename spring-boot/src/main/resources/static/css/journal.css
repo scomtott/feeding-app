@@ -64,7 +64,8 @@ h2 {
 .month-index-section,
 .backup-status-section,
 .editor-section,
-.preview-section {
+.preview-section,
+.entry-navigation-section {
     background-color: #f9f9f9;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
@@ -76,11 +77,16 @@ h2 {
 .month-controls-row,
 .mode-toggle,
 .editor-controls,
-.upload-controls {
+.upload-controls,
+.entry-navigation-row {
     display: flex;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
+}
+
+.entry-navigation-row {
+    justify-content: center;
 }
 
 .mode-button {
@@ -170,6 +176,11 @@ button:hover {
     min-height: 18px;
 }
 
+.upload-hint {
+    color: #666;
+    font-size: 12px;
+}
+
 .month-index {
     display: flex;
     flex-wrap: wrap;
@@ -249,6 +260,19 @@ button:hover {
     border-radius: 4px;
 }
 
+.rendered-entry video {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 4px;
+    background-color: #000;
+}
+
+.rendered-entry .journal-video-link {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .empty-hint {
     color: #777;
     font-style: italic;
@@ -267,7 +291,8 @@ button:hover {
     .date-controls-row,
     .month-controls-row,
     .mode-toggle,
-    .upload-controls {
+    .upload-controls,
+    .entry-navigation-row {
         flex-direction: column;
         align-items: stretch;
     }

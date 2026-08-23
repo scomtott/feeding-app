@@ -211,7 +211,7 @@ function renderScheduleAnchors(anchors) {
 function renderOverrideLeases(leases) {
     const tbody = document.getElementById('overrideTableBody');
     if (!leases.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="muted">No active override leases</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">No active override leases</td></tr>';
         return;
     }
 
@@ -219,9 +219,10 @@ function renderOverrideLeases(leases) {
         <tr>
             <td>${escapeHtml(lease.friendlyName || '-')}</td>
             <td>${escapeHtml(lease.entityId || '-')}</td>
+            <td>${formatLeaseType(lease.leaseType)}</td>
             <td>${formatTimestamp(lease.overrideUntil)}</td>
             <td>
-                <button type="button" class="secondary" onclick="clearOverrideLease('${encodeForOnClick(lease.entityId)}')">Clear Lease</button>
+                <button type="button" class="secondary" onclick="clearOverrideLease('${encodeForOnClick(lease.entityId)}', '${encodeForOnClick(lease.leaseType)}')">Clear Lease</button>
             </td>
         </tr>
     `).join('');
@@ -258,7 +259,7 @@ function renderLights(lights) {
     }).join('');
 }
 
-async function clearOverrideLease(entityId) {
+async function clearOverrideLease(entityId, leaseType) {
     if (!entityId) {
         return;
     }
@@ -267,7 +268,8 @@ async function clearOverrideLease(entityId) {
     status.classList.remove('error');
 
     try {
-        const response = await fetch(`/api/homeassistant/lights/manual-override/clear?entity_id=${encodeURIComponent(entityId)}`, {
+        const leaseTypeParam = leaseType ? `&lease_type=${encodeURIComponent(leaseType)}` : '';
+        const response = await fetch(`/api/homeassistant/lights/manual-override/clear?entity_id=${encodeURIComponent(entityId)}${leaseTypeParam}`, {
             method: 'POST'
         });
 
@@ -275,11 +277,11 @@ async function clearOverrideLease(entityId) {
             throw new Error(`HTTP ${response.status}`);
         }
 
-        status.textContent = `Cleared manual override lease for ${entityId}`;
+        status.textContent = `Cleared ${formatLeaseType(leaseType)} for ${entityId}`;
         await loadDashboard(false);
     } catch (error) {
-        window.appLogger?.error('Failed to clear manual override lease', { entityId, error: error.message });
-        status.textContent = `Failed to clear override lease for ${entityId}: ${error.message}`;
+        window.appLogger?.error('Failed to clear manual override lease', { entityId, leaseType, error: error.message });
+        status.textContent = `Failed to clear ${formatLeaseType(leaseType)} for ${entityId}: ${error.message}`;
         status.classList.add('error');
     }
 }
@@ -297,6 +299,22 @@ function formatTimestamp(value) {
 
 function encodeForOnClick(text) {
     return String(text || '').replace(/'/g, "\\'");
+}
+
+function formatLeaseType(leaseType) {
+    if (!leaseType) {
+        return '-';
+    }
+
+    if (leaseType === 'BRIGHTNESS_MANUAL_OVERRIDE') {
+        return 'Brightness Manual Override';
+    }
+
+    if (leaseType === 'BATHROOM_OCCUPANCY_MANUAL_LEASE') {
+        return 'Bathroom Occupancy Manual Lease';
+    }
+
+    return escapeHtml(String(leaseType));
 }
 
 function escapeHtml(value) {

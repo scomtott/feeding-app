@@ -3,6 +3,7 @@ package com.example.springboot.homeassistant.controller;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.extern.slf4j.Slf4j;
 
+import com.example.springboot.homeassistant.automations.BathroomOccupancyAutomation;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.models.LightEntityClassifier;
 import com.example.springboot.homeassistant.services.BrightnessAutomationExclusionRegistry;
@@ -35,6 +37,7 @@ public class HomeAssistantController {
 
     private final LightBrightnessService lightBrightnessService;
     private final DelayedActionService delayedActionService;
+    private final BathroomOccupancyAutomation bathroomOccupancyAutomation;
 
     @GetMapping("/lights")
     public List<LightEntity> getLightEntities() {
@@ -89,8 +92,24 @@ public class HomeAssistantController {
     }
 
     @PostMapping("/lights/manual-override/clear")
-    public void clearManualOverride(@RequestParam("entity_id") String entityId) {
-        lightBrightnessService.clearManualBrightnessOverride(entityId);
+    public void clearManualOverride(
+        @RequestParam("entity_id") String entityId,
+        @RequestParam(value = "lease_type", required = false) String leaseType
+    ) {
+        if (leaseType == null || leaseType.isBlank()) {
+            lightBrightnessService.clearManualBrightnessOverride(entityId);
+            bathroomOccupancyAutomation.clearManualLease(entityId);
+            return;
+        }
+
+        if (LeaseType.BRIGHTNESS_MANUAL_OVERRIDE.name().equalsIgnoreCase(leaseType)) {
+            lightBrightnessService.clearManualBrightnessOverride(entityId);
+            return;
+        }
+
+        if (LeaseType.BATHROOM_OCCUPANCY_MANUAL_LEASE.name().equalsIgnoreCase(leaseType)) {
+            bathroomOccupancyAutomation.clearManualLease(entityId);
+        }
     }
 
     @GetMapping("/lights/brightness-dashboard")
@@ -121,7 +140,7 @@ public class HomeAssistantController {
             .sorted(Comparator.comparing(item -> item.entityId() == null ? "" : item.entityId()))
             .toList();
 
-        List<ManualOverrideLeaseItem> manualOverrideLeases = activeOverrides.entrySet().stream()
+        List<ManualOverrideLeaseItem> manualOverrideLeases = new ArrayList<>(activeOverrides.entrySet().stream()
             .map(entry -> {
                 String entityId = entry.getKey();
                 String friendlyName = lights.stream()
@@ -130,10 +149,35 @@ public class HomeAssistantController {
                     .filter(name -> name != null && !name.isBlank())
                     .findFirst()
                     .orElse(null);
-                return new ManualOverrideLeaseItem(friendlyName, entityId, entry.getValue());
+                return new ManualOverrideLeaseItem(
+                    friendlyName,
+                    entityId,
+                    LeaseType.BRIGHTNESS_MANUAL_OVERRIDE.name(),
+                    entry.getValue()
+                );
             })
-            .sorted(Comparator.comparing(ManualOverrideLeaseItem::entityId))
-            .toList();
+            .toList());
+
+        BathroomOccupancyAutomation.BathroomManualLease bathroomManualLease = bathroomOccupancyAutomation.getActiveManualLease();
+        if (bathroomManualLease != null) {
+            String leaseEntityId = bathroomManualLease.entityId();
+            String friendlyName = lights.stream()
+                .filter(light -> leaseEntityId.equals(normalizeLightEntityId(light.entityId())))
+                .map(LightDashboardItem::friendlyName)
+                .filter(name -> name != null && !name.isBlank())
+                .findFirst()
+                .orElse(null);
+            manualOverrideLeases.add(new ManualOverrideLeaseItem(
+                friendlyName,
+                leaseEntityId,
+                LeaseType.BATHROOM_OCCUPANCY_MANUAL_LEASE.name(),
+                bathroomManualLease.leaseUntil()
+            ));
+        }
+
+        manualOverrideLeases.sort(Comparator
+            .comparing(ManualOverrideLeaseItem::entityId)
+            .thenComparing(ManualOverrideLeaseItem::leaseType));
 
         CurrentScheduleState currentState = new CurrentScheduleState(
             now.toString(),
@@ -185,7 +229,12 @@ public class HomeAssistantController {
     ) {
     }
 
-    public record ManualOverrideLeaseItem(String friendlyName, String entityId, Instant overrideUntil) {
+    public record ManualOverrideLeaseItem(String friendlyName, String entityId, String leaseType, Instant overrideUntil) {
+    }
+
+    private enum LeaseType {
+        BRIGHTNESS_MANUAL_OVERRIDE,
+        BATHROOM_OCCUPANCY_MANUAL_LEASE
     }
 
     public record DelayedActionItem(

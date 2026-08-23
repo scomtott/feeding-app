@@ -11,6 +11,7 @@ public record LightEntity(
 	@JsonProperty("entity_id") String entityId,
 	String state,
 	Attributes attributes,
+	Context context,
 	@JsonProperty("last_changed") String lastChanged,
 	@JsonProperty("last_updated") String lastUpdated
 ) {
@@ -32,6 +33,14 @@ public record LightEntity(
 		@JsonProperty("xy_color") List<Double> xyColor,
 		String effect,
 		@JsonProperty("effect_list") List<String> effectList
+	) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public record Context(
+		String id,
+		@JsonProperty("parent_id") String parentId,
+		@JsonProperty("user_id") String userId
 	) {
 	}
 

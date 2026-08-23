@@ -38,7 +38,12 @@ public class JournalService {
         "image/png",
         "image/gif",
         "image/webp",
-        "image/bmp"
+        "image/bmp",
+        "video/mp4",
+        "video/webm",
+        "video/ogg",
+        "video/quicktime",
+        "video/x-m4v"
     );
 
     private final Path markdownRoot;
@@ -120,17 +125,39 @@ public class JournalService {
         return new JournalMonthIndexResponse(yearMonth.getYear(), yearMonth.getMonthValue(), dates);
     }
 
+    public List<LocalDate> listEntryDates() {
+        if (!Files.exists(markdownRoot)) {
+            return List.of();
+        }
+
+        List<LocalDate> dates = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(markdownRoot, "*.md")) {
+            for (Path file : stream) {
+                LocalDate parsedDate = parseDateFromFileName(file.getFileName().toString());
+                if (parsedDate != null) {
+                    dates.add(parsedDate);
+                }
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to list journal entry dates", ex);
+        }
+
+        dates.sort(Comparator.naturalOrder());
+        return dates;
+    }
+
     public JournalImageUploadResponse uploadImage(LocalDate date, MultipartFile image) {
         if (image == null || image.isEmpty()) {
-            throw new IllegalArgumentException("Image file is required");
+            throw new IllegalArgumentException("Media file is required");
         }
 
         String contentType = image.getContentType();
-        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("Unsupported image type");
+        String normalizedContentType = contentType == null ? null : contentType.toLowerCase(Locale.ROOT);
+        if (normalizedContentType == null || !ALLOWED_CONTENT_TYPES.contains(normalizedContentType)) {
+            throw new IllegalArgumentException("Unsupported media type");
         }
 
-        String extension = extractSafeExtension(image.getOriginalFilename(), contentType);
+        String extension = extractSafeExtension(image.getOriginalFilename(), normalizedContentType);
         String fileName = UUID.randomUUID() + extension;
         String dayPath = String.format("%04d/%02d/%02d", date.getYear(), date.getMonthValue(), date.getDayOfMonth());
         Path targetDirectory = resolveImageDirectory(dayPath);
@@ -144,14 +171,14 @@ public class JournalService {
             Files.createDirectories(targetDirectory);
             image.transferTo(targetFile);
         } catch (IOException ex) {
-            throw new IllegalStateException("Failed to store image", ex);
+            throw new IllegalStateException("Failed to store media", ex);
         }
 
         String url = "/journal-media/" + dayPath + "/" + fileName;
         String markdown = "![]("
             + url
             + ")";
-        log.info("Stored journal image for {} at {}", date, targetFile);
+        log.info("Stored journal media for {} at {}", date, targetFile);
         return new JournalImageUploadResponse(url, markdown, fileName);
     }
 
@@ -195,11 +222,16 @@ public class JournalService {
             }
         }
 
-        return switch (contentType.toLowerCase(Locale.ROOT)) {
+        return switch (contentType) {
             case "image/png" -> ".png";
             case "image/gif" -> ".gif";
             case "image/webp" -> ".webp";
             case "image/bmp" -> ".bmp";
+            case "video/mp4" -> ".mp4";
+            case "video/webm" -> ".webm";
+            case "video/ogg" -> ".ogv";
+            case "video/quicktime" -> ".mov";
+            case "video/x-m4v" -> ".m4v";
             default -> ".jpg";
         };
     }
