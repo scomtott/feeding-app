@@ -12,6 +12,8 @@ import com.example.springboot.homeassistant.automations.BathroomOccupancyAutomat
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.services.DelayedActionService;
 import com.example.springboot.homeassistant.services.LightBrightnessService;
+import com.example.springboot.logging.BufferedBackendFileLogger;
+import com.example.springboot.models.LogLevel;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,6 +41,9 @@ public class DelayedLightOffJob implements Job {
     @Autowired(required = false)
     private BathroomOccupancyAutomation bathroomOccupancyAutomation;
 
+    @Autowired(required = false)
+    private BufferedBackendFileLogger backendFileLogger;
+
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         JobDataMap dataMap = context.getMergedJobDataMap();
@@ -61,6 +66,14 @@ public class DelayedLightOffJob implements Job {
         }
 
         String effectivePhase = phase == null || phase.isBlank() ? REQUEST_PHASE : phase;
+        emitBackendLog(
+            LogLevel.INFO,
+            "delayed-action",
+            "Delayed action running: actionKey=" + actionKey
+                + ", phase=" + effectivePhase
+                + ", attempt=" + attempt
+                + ", light=" + lightEntityId
+        );
 
         try {
             if (REQUEST_PHASE.equals(effectivePhase)) {
@@ -130,5 +143,11 @@ public class DelayedLightOffJob implements Job {
         long exponentialMultiplier = 1L << Math.min(attempt, 10);
         Duration delay = INITIAL_VERIFY_DELAY.multipliedBy(exponentialMultiplier);
         return delay.compareTo(MAX_VERIFY_DELAY) > 0 ? MAX_VERIFY_DELAY : delay;
+    }
+
+    private void emitBackendLog(LogLevel level, String category, String message) {
+        if (backendFileLogger != null) {
+            backendFileLogger.log(DelayedLightOffJob.class, level, category, message);
+        }
     }
 }

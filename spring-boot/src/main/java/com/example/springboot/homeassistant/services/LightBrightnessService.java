@@ -16,10 +16,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.example.springboot.homeassistant.client.HomeAssistantHttpClient;
+import com.example.springboot.homeassistant.events.LightStateChangedEvent;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.models.LightEntityClassifier;
 import com.example.springboot.homeassistant.models.LightEntityClassifier.LightKind;
-import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,8 +33,6 @@ public class LightBrightnessService {
 
     private final HomeAssistantHttpClient homeAssistantHttpClient;
     private final ObjectMapper objectMapper;
-    private final BathroomTelemetryStorageService bathroomTelemetryStorageService;
-    private final IlluminanceSensorService illuminanceSensorService;
     private final DelayedActionService delayedActionService;
     private static final Duration MANUAL_OVERRIDE_DURATION = Duration.ofMinutes(60);
     private static final Duration AUTOMATION_ACK_WINDOW = Duration.ofSeconds(30);
@@ -238,7 +236,7 @@ public class LightBrightnessService {
     }
 
     @Async("telemetryExecutor")
-    public void handleLightStateChanged(HaWsStateChangedEvent<LightEntity> event) {
+    public void handleLightStateChanged(LightStateChangedEvent event) {
         if (log.isDebugEnabled()) {
             try {
                 String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
@@ -248,12 +246,8 @@ public class LightBrightnessService {
             }
         }
 
-        if (event.event() == null || event.event().data() == null) {
-            return;
-        }
-
-        LightEntity oldState = event.event().data().oldState();
-        LightEntity newState = event.event().data().newState();
+        LightEntity oldState = event.oldState();
+        LightEntity newState = event.newState();
         if (newState == null) {
             return;
         }
@@ -276,20 +270,6 @@ public class LightBrightnessService {
         if (oldOn && newOn && newBrightness != null && !Objects.equals(oldBrightness, newBrightness)) {
             trackManualBrightnessOverride(entityId, newBrightness);
         }
-
-        if (oldState == null || !bathroomTelemetryStorageService.isTrackedBathroomLight(entityId)) {
-            return;
-        }
-
-        if (oldOn == newOn) {
-            return;
-        }
-
-        Instant eventTs = HomeAssistantEventUtils.parseEventTimestamp(newState.lastUpdated(), newState.lastChanged());
-        String payloadJson = HomeAssistantEventUtils.serializeEventSilently(objectMapper, event);
-
-        bathroomTelemetryStorageService.storeLightStateEvent(entityId, newOn, eventTs, "ha-websocket", payloadJson);
-        illuminanceSensorService.notifyContextStateChange(eventTs);
     }
 
     private void applyTimeOfDayBrightnessOnTurnOn(LightEntity lightEntity) {

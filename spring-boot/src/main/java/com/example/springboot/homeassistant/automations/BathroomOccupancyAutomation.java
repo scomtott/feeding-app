@@ -13,11 +13,11 @@ import org.springframework.stereotype.Component;
 
 import com.example.springboot.homeassistant.automations.events.OccupancyStateChangedEvent;
 import com.example.springboot.homeassistant.client.HomeAssistantHttpClient;
+import com.example.springboot.homeassistant.events.LightStateChangedEvent;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.properties.BathroomOccupancyAutomationProperties;
 import com.example.springboot.homeassistant.services.DelayedActionService;
 import com.example.springboot.homeassistant.services.LightBrightnessService;
-import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedEvent;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
@@ -120,8 +120,8 @@ public class BathroomOccupancyAutomation {
         log.info("Bathroom occupancy clear for {}.", configuredSensor);
     }
 
-    public void handleBathroomLightStateChanged(HaWsStateChangedEvent<LightEntity> event) {
-        if (!properties.isEnabled() || event == null || event.event() == null || event.event().data() == null) {
+    public void handleBathroomLightStateChanged(LightStateChangedEvent event) {
+        if (!properties.isEnabled() || event == null) {
             return;
         }
 
@@ -130,8 +130,8 @@ public class BathroomOccupancyAutomation {
             return;
         }
 
-        LightEntity oldState = event.event().data().oldState();
-        LightEntity newState = event.event().data().newState();
+        LightEntity oldState = event.oldState();
+        LightEntity newState = event.newState();
         if (newState == null || newState.entityId() == null) {
             return;
         }

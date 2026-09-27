@@ -19,13 +19,11 @@ import org.junit.jupiter.api.Test;
 
 import com.example.springboot.homeassistant.automations.events.OccupancyStateChangedEvent;
 import com.example.springboot.homeassistant.client.HomeAssistantHttpClient;
+import com.example.springboot.homeassistant.events.LightStateChangedEvent;
 import com.example.springboot.homeassistant.models.LightEntity;
 import com.example.springboot.homeassistant.properties.BathroomOccupancyAutomationProperties;
 import com.example.springboot.homeassistant.services.DelayedActionService;
 import com.example.springboot.homeassistant.services.LightBrightnessService;
-import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedData;
-import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedEvent;
-import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedEventPayload;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -228,17 +226,8 @@ class BathroomOccupancyAutomationTest {
         return "automation:bathroom-occupancy:" + SENSOR_ENTITY_ID + ":" + LIGHT_ENTITY_ID + ":turn_off";
     }
 
-    private HaWsStateChangedEvent<LightEntity> lightStateChangedEvent(LightEntity oldState, LightEntity newState) {
-        return new HaWsStateChangedEvent<>(
-            1,
-            "event",
-            new HaWsStateChangedEventPayload<>(
-                "state_changed",
-                new HaWsStateChangedData<>(LIGHT_ENTITY_ID, oldState, newState),
-                "LOCAL",
-                null
-            )
-        );
+    private LightStateChangedEvent lightStateChangedEvent(LightEntity oldState, LightEntity newState) {
+        return new LightStateChangedEvent(LIGHT_ENTITY_ID, oldState, newState);
     }
 
     private LightEntity lightState(String state) {

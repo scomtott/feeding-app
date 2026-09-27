@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Logs</title>
+    <link rel="stylesheet" href="../css/backend-logs.css">
+    <script src="../js/logger.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav id="main-nav"></nav>
+
+        <header class="page-header">
+            <h1>Backend File Logs</h1>
+            <button id="refreshStorageButton" type="button">Refresh Storage</button>
+        </header>
+
+        <section class="panel controls">
+            <div class="control-row">
+                <label for="fromInput">From</label>
+                <input id="fromInput" type="datetime-local">
+                <label for="toInput">To</label>
+                <input id="toInput" type="datetime-local">
+                <button id="loadWindowButton" type="button">Load Time Window</button>
+            </div>
+            <div class="control-row">
+                <label for="lastCountInput">Last X Logs</label>
+                <input id="lastCountInput" type="number" min="1" max="1000" step="1" value="200">
+                <button id="loadLatestButton" type="button">Load Last X</button>
+            </div>
+            <div class="control-row">
+                <label for="sourceClassFilterInput">Class</label>
+                <input id="sourceClassFilterInput" type="text" placeholder="com.example.SomeClass">
+                <label for="logLevelFilterSelect">Log Level</label>
+                <select id="logLevelFilterSelect">
+                    <option value="">Any</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARN">WARN</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+                <label for="categoryFilterInput">Category</label>
+                <input id="categoryFilterInput" type="text" placeholder="feeding, automation, ...">
+                <button id="clearFiltersButton" type="button">Clear Filters</button>
+            </div>
+        </section>
+
+        <section class="panel summary-panel">
+            <p id="summaryText">No logs loaded yet.</p>
+            <p id="storageText">Storage usage: loading...</p>
+        </section>
+
+        <section class="panel table-panel">
+            <div class="table-wrap">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Level</th>
+                            <th>Category</th>
+                            <th>Source Class</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <tr><td colspan="5" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <p id="statusMessage" class="status-message"></p>
+    </div>
+
+    <script src="../js/backend-logs.js"></script>
+    <script src="../js/nav.js?v=5"></script>
+</body>
+</html>

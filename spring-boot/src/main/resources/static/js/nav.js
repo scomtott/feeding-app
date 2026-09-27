@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { href: 'home-assistant.html', label: 'Home Assistant' },
             { href: 'brightness-dashboard.html', label: 'Brightness Dashboard' },
             { href: 'delayed-actions.html', label: 'Delayed Actions' },
-            { href: 'bathroom-telemetry.html', label: 'Bathroom Telemetry' }
+            { href: 'backend-logs.html', label: 'Backend Logs' }
         ];
 
         // Build navigation HTML

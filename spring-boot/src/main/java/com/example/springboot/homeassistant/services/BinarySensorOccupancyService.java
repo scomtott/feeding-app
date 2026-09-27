@@ -5,8 +5,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.example.springboot.homeassistant.automations.events.OccupancyStateChangedEvent;
+import com.example.springboot.homeassistant.events.BinarySensorStateChangedEvent;
 import com.example.springboot.homeassistant.models.BinarySensorEntity;
-import com.example.springboot.homeassistant.websocket.messages.HaWsStateChangedEvent;
+import com.example.springboot.logging.BufferedBackendFileLogger;
+import com.example.springboot.models.LogLevel;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,11 +21,10 @@ public class BinarySensorOccupancyService {
 
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
-    private final BathroomTelemetryStorageService bathroomTelemetryStorageService;
-    private final IlluminanceSensorService illuminanceSensorService;
+    private final BufferedBackendFileLogger backendFileLogger;
 
     @Async("telemetryExecutor")
-    public void handleOccupancySensorStateChanged(HaWsStateChangedEvent<BinarySensorEntity> event) {
+    public void handleOccupancySensorStateChanged(BinarySensorStateChangedEvent event) {
         if (log.isDebugEnabled()) {
             try {
                 String prettyEvent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
@@ -33,12 +34,8 @@ public class BinarySensorOccupancyService {
             }
         }
 
-        if (event.event() == null || event.event().data() == null) {
-            return;
-        }
-
-        BinarySensorEntity oldState = event.event().data().oldState();
-        BinarySensorEntity newState = event.event().data().newState();
+        BinarySensorEntity oldState = event.oldState();
+        BinarySensorEntity newState = event.newState();
 
         if (oldState == null || newState == null) {
             return;
@@ -52,16 +49,15 @@ public class BinarySensorOccupancyService {
         }
 
         String entityId = newState.entityId() != null ? newState.entityId() : "unknown";
-        var eventTs = HomeAssistantEventUtils.parseEventTimestamp(newState.lastUpdated(), newState.lastChanged());
-        String payloadJson = HomeAssistantEventUtils.serializeEventSilently(objectMapper, event);
-
-        if (bathroomTelemetryStorageService.isTrackedOccupancySensor(entityId)) {
-            bathroomTelemetryStorageService.storeOccupancyEvent(newIsOn, eventTs, "ha-websocket", payloadJson);
-            illuminanceSensorService.notifyContextStateChange(eventTs);
-        }
 
         String status = newIsOn ? "ON (detected)" : "OFF (clear)";
         log.info("Occupancy sensor {} changed to {}", entityId, status);
+        backendFileLogger.log(
+            BinarySensorOccupancyService.class,
+            LogLevel.INFO,
+            "motion-sensor",
+            "Motion sensor " + entityId + " changed to " + status
+        );
         eventPublisher.publishEvent(new OccupancyStateChangedEvent(entityId, newIsOn));
     }
 }

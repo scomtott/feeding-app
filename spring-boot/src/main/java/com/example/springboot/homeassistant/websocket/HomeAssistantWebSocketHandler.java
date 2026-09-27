@@ -1,81 +1,59 @@
 package com.example.springboot.homeassistant.websocket;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import com.example.springboot.homeassistant.events.StateChangedEventFactory;
 import com.example.springboot.homeassistant.properties.HomeAssistantProperties;
-import com.example.springboot.homeassistant.automations.BathroomOccupancyAutomation;
-import com.example.springboot.homeassistant.models.LightEntity;
-import com.example.springboot.homeassistant.models.BinarySensorEntity;
-import com.example.springboot.homeassistant.models.SensorEntity;
 import com.example.springboot.homeassistant.websocket.messages.*;
-import com.example.springboot.homeassistant.services.LightBrightnessService;
-import com.example.springboot.homeassistant.services.BinarySensorService;
-import com.example.springboot.homeassistant.services.SensorService;
 
 import lombok.extern.slf4j.Slf4j;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * The Home Assistant websocket listener.
+ *
+ * <p>Its only job is transport: authenticate, subscribe to {@code state_changed}, and turn each
+ * inbound payload into a typed {@code StateChangedEvent} published on the Spring event bus. Which
+ * services react, and in what order, is decided in
+ * {@link com.example.springboot.homeassistant.HomeAssistantEventSubscriptions}.
+ */
 @Component
 @Slf4j
 public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
 
     private final HomeAssistantProperties homeAssistantProperties;
+    private final StateChangedEventFactory stateChangedEventFactory;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final AtomicInteger messageIdCounter = new AtomicInteger(0);
     private final Set<String> subscribedSessionIds = ConcurrentHashMap.newKeySet();
-    private final Map<String, DomainEventRoute<?>> domainEventRoutes;
     private final Executor homeAssistantEventExecutor;
 
     public HomeAssistantWebSocketHandler(
         HomeAssistantProperties properties,
-        LightBrightnessService brightnessService,
-        BathroomOccupancyAutomation bathroomOccupancyAutomation,
-        BinarySensorService binarySensorService,
-        SensorService sensorService,
+        StateChangedEventFactory stateChangedEventFactory,
+        ApplicationEventPublisher eventPublisher,
         ObjectMapper mapper,
         @Qualifier("homeAssistantEventExecutor")
         Executor homeAssistantEventExecutor
     ) {
         this.homeAssistantProperties = properties;
+        this.stateChangedEventFactory = stateChangedEventFactory;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = mapper;
         this.homeAssistantEventExecutor = homeAssistantEventExecutor;
-        this.domainEventRoutes = Map.of(
-            "light",
-            new DomainEventRoute<>(
-                new TypeReference<HaWsStateChangedEvent<LightEntity>>() {
-                },
-                event -> {
-                    brightnessService.handleLightStateChanged(event);
-                    bathroomOccupancyAutomation.handleBathroomLightStateChanged(event);
-                }
-            ),
-            "binary_sensor",
-            new DomainEventRoute<>(
-                new TypeReference<HaWsStateChangedEvent<BinarySensorEntity>>() {
-                },
-                binarySensorService::handleBinarySensorStateChanged
-            ),
-            "sensor",
-            new DomainEventRoute<>(
-                new TypeReference<HaWsStateChangedEvent<SensorEntity>>() {
-                },
-                sensorService::handleSensorStateChanged
-            )
-        );
     }
 
     @Override
@@ -174,7 +152,7 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
         log.warn("Home Assistant websocket result failed (id={}) with unknown error payload", result.id());
     }
 
-    private void handleEvent(String payload) throws IOException {
+    private void handleEvent(String payload) {
         HaWsEvent eventMessage = objectMapper.readValue(payload, HaWsEvent.class);
 
         if (eventMessage.event() == null) {
@@ -192,24 +170,26 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
             : eventMessage.event().data().get("entity_id").asText("unknown");
 
         String domain = parseDomainFromEntityId(entityId);
-        DomainEventRoute<?> route = domainEventRoutes.get(domain);
-
-        if (route == null) {
+        if (!stateChangedEventFactory.supports(domain)) {
             log.debug("Unhandled Home Assistant domain: {}", domain);
             return;
         }
 
+        // Publishing must stay inside the executor. Subscribers include synchronous work — Quartz
+        // cancel/schedule, HTTP calls, the file logger — which would otherwise run on the websocket
+        // I/O thread.
         homeAssistantEventExecutor.execute(() -> {
             try {
-                route.handle(payload, objectMapper);
-            } catch (IOException e) {
+                stateChangedEventFactory.create(payload, entityId, domain)
+                    .ifPresent(eventPublisher::publishEvent);
+            } catch (Exception e) {
                 log.warn("Failed to process Home Assistant state_changed event asynchronously for {}", entityId, e);
             }
         });
 
-        log.debug("Home Assistant state_changed event for {}", entityId == null ? "unknown" : entityId);
+        log.debug("Home Assistant state_changed event for {}", entityId);
 
-        if (entityId != null && entityId.contains("person.tom")) {
+        if (entityId.contains("person.tom")) {
             log.info("Person Tom state changed: {}", payload);
         }
     }
@@ -219,20 +199,5 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
             return "unknown";
         }
         return entityId.substring(0, entityId.indexOf('.'));
-    }
-
-    private static final class DomainEventRoute<T> {
-        private final TypeReference<HaWsStateChangedEvent<T>> typeReference;
-        private final Consumer<HaWsStateChangedEvent<T>> consumer;
-
-        private DomainEventRoute(TypeReference<HaWsStateChangedEvent<T>> typeReference, Consumer<HaWsStateChangedEvent<T>> consumer) {
-            this.typeReference = typeReference;
-            this.consumer = consumer;
-        }
-
-        private void handle(String payload, ObjectMapper objectMapper) throws IOException {
-            HaWsStateChangedEvent<T> event = objectMapper.readValue(payload, typeReference);
-            consumer.accept(event);
-        }
     }
 }

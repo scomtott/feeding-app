@@ -1,0 +1,160 @@
+body {
+    margin: 0;
+    padding: 20px;
+    background: linear-gradient(145deg, #f4f9ff 0%, #fcfef6 55%, #fff7f1 100%);
+    color: #1e2a37;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.container {
+    max-width: 1320px;
+    margin: 0 auto;
+}
+
+nav {
+    margin-bottom: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+nav a {
+    text-decoration: none;
+    color: #2a3a4a;
+    padding: 8px 12px;
+    border-radius: 10px;
+}
+
+nav a.active,
+nav a:hover {
+    background: #0f6ad9;
+    color: #fff;
+}
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+h1 {
+    margin: 0;
+}
+
+.panel {
+    background: #ffffffd9;
+    border: 1px solid #dce6f4;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 30px rgba(31, 42, 54, 0.08);
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.control-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+label {
+    font-weight: 600;
+}
+
+input,
+select {
+    border: 1px solid #ccd8ea;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 0.95rem;
+    background: #fff;
+}
+
+input[type="number"] {
+    width: 120px;
+}
+
+button {
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: #0f6ad9;
+    color: #fff;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #0b4f9f;
+}
+
+.summary-panel p {
+    margin: 4px 0;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1140px;
+}
+
+.logs-table th,
+.logs-table td {
+    border: 1px solid #dde5f1;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.logs-table th {
+    background: #f2f6fc;
+}
+
+.logs-table tbody tr:nth-child(even) {
+    background: #fafcff;
+}
+
+.logs-table td.message-cell {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 640px;
+}
+
+.muted {
+    text-align: center;
+    color: #6d7b8a;
+}
+
+.status-message {
+    min-height: 20px;
+    color: #0f6a32;
+}
+
+.status-message.error {
+    color: #b83232;
+}
+
+@media (max-width: 900px) {
+    body {
+        padding: 12px;
+    }
+
+    .panel {
+        padding: 10px;
+    }
+
+    input[type="datetime-local"] {
+        max-width: 100%;
+    }
+}
