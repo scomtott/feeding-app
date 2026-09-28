@@ -40,6 +40,8 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
     private final AtomicInteger messageIdCounter = new AtomicInteger(0);
     private final Set<String> subscribedSessionIds = ConcurrentHashMap.newKeySet();
     private final Executor homeAssistantEventExecutor;
+    private volatile WebSocketSession currentSession;
+    private volatile int outstandingPingId;
 
     public HomeAssistantWebSocketHandler(
         HomeAssistantProperties properties,
@@ -58,6 +60,8 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+        currentSession = session;
+        outstandingPingId = 0;
         log.info("Connected to Home Assistant websocket: {}", session.getUri());
     }
 
@@ -83,6 +87,7 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
             case "auth_ok" -> handleAuthOk(session, payload);
             case "auth_invalid" -> handleAuthInvalid(payload);
             case "result" -> handleResult(payload);
+            case "pong" -> handlePong(payload);
             case "event" -> handleEvent(payload);
             default -> log.debug("Unhandled Home Assistant websocket message type: {} payload={}", envelope.type(), payload);
         }
@@ -91,6 +96,57 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         subscribedSessionIds.remove(session.getId());
+        if (currentSession == session) {
+            currentSession = null;
+        }
+        outstandingPingId = 0;
+
+        // Deliberately loud. This used to be silent, which is how the integration sat dead for
+        // fifteen hours with no events, no errors, and nothing in the log to notice.
+        log.warn("Home Assistant websocket closed ({}); the watchdog will reconnect", status);
+    }
+
+    /** True when a session is established and still reports itself open. */
+    public boolean isConnected() {
+        WebSocketSession session = currentSession;
+        return session != null && session.isOpen();
+    }
+
+    /** True when the current session is the one state_changed was successfully subscribed on. */
+    public boolean isSubscribed() {
+        WebSocketSession session = currentSession;
+        return session != null && subscribedSessionIds.contains(session.getId());
+    }
+
+    /**
+     * Sends a keepalive ping; Home Assistant replies with a pong carrying the same id.
+     *
+     * <p>The outstanding id is recorded before the send, not after. A pong can be handled on the
+     * websocket I/O thread the instant it goes out, and recording it afterwards would leave the
+     * ping looking unanswered forever - a spurious reconnect on every single tick.
+     */
+    public boolean sendPing() {
+        WebSocketSession session = currentSession;
+        if (session == null || !session.isOpen()) {
+            return false;
+        }
+
+        int id = messageIdCounter.incrementAndGet();
+        outstandingPingId = id;
+        try {
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(new HaWsPingRequest(id, "ping"))));
+            log.debug("Sent Home Assistant websocket ping (id={})", id);
+            return true;
+        } catch (IOException | RuntimeException e) {
+            outstandingPingId = 0;
+            log.warn("Failed to send Home Assistant websocket ping (id={})", id, e);
+            return false;
+        }
+    }
+
+    /** True when a ping has been sent and not yet answered. */
+    public boolean isPingOutstanding() {
+        return outstandingPingId != 0;
     }
 
     private void sendAuthMessage(WebSocketSession session) throws IOException {
@@ -150,6 +206,16 @@ public class HomeAssistantWebSocketHandler extends TextWebSocketHandler {
         }
 
         log.warn("Home Assistant websocket result failed (id={}) with unknown error payload", result.id());
+    }
+
+    private void handlePong(String payload) {
+        HaWsEnvelope pong = objectMapper.readValue(payload, HaWsEnvelope.class);
+        if (pong.id() != null && pong.id() == outstandingPingId) {
+            outstandingPingId = 0;
+            log.debug("Home Assistant websocket pong received (id={})", pong.id());
+            return;
+        }
+        log.debug("Ignoring an unexpected Home Assistant websocket pong (id={})", pong.id());
     }
 
     private void handleEvent(String payload) {

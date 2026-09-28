@@ -2,19 +2,32 @@ package com.example.springboot.homeassistant.websocket;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import com.example.springboot.homeassistant.events.BinarySensorStateChangedEvent;
 import com.example.springboot.homeassistant.events.LightStateChangedEvent;
@@ -100,6 +113,133 @@ class HomeAssistantWebSocketHandlerTest {
                 """)
         ));
         assertTrue(publisher.events.isEmpty());
+    }
+
+    // --- connection state and keepalive -------------------------------------------------
+
+    @Test
+    void isConnectedOnlyWhileASessionIsOpen() {
+        assertFalse(handler.isConnected(), "no session established yet");
+
+        WebSocketSession session = openSession();
+        handler.afterConnectionEstablished(session);
+        assertTrue(handler.isConnected());
+
+        when(session.isOpen()).thenReturn(false);
+        assertFalse(handler.isConnected(), "the socket went away underneath us");
+    }
+
+    @Test
+    void isSubscribedOnlyAfterAuthOk() throws Exception {
+        WebSocketSession session = openSession();
+        handler.afterConnectionEstablished(session);
+        assertFalse(handler.isSubscribed(), "connected is not the same as subscribed to events");
+
+        handler.handleTextMessage(session, message("{\"type\": \"auth_ok\", \"ha_version\": \"2026.5.3\"}"));
+
+        assertTrue(handler.isSubscribed());
+    }
+
+    @Test
+    void sendsAPingCarryingAnId() throws Exception {
+        WebSocketSession session = openSession();
+        handler.afterConnectionEstablished(session);
+
+        assertTrue(handler.sendPing());
+        assertTrue(handler.isPingOutstanding());
+
+        ArgumentCaptor<TextMessage> sent = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session).sendMessage(sent.capture());
+        assertTrue(sent.getValue().getPayload().contains("\"type\":\"ping\""), sent.getValue().getPayload());
+        assertTrue(pingIdOf(sent.getValue()) > 0);
+    }
+
+    @Test
+    void aPongCarryingThePingIdClearsIt() throws Exception {
+        WebSocketSession session = openSession();
+        handler.afterConnectionEstablished(session);
+        handler.sendPing();
+
+        handler.handleTextMessage(session, message(pongFor(pingIdSentOn(session))));
+
+        assertFalse(handler.isPingOutstanding());
+    }
+
+    @Test
+    void aPongCarryingAnUnexpectedIdLeavesThePingOutstanding() throws Exception {
+        WebSocketSession session = openSession();
+        handler.afterConnectionEstablished(session);
+        handler.sendPing();
+        int sentId = pingIdSentOn(session);
+
+        handler.handleTextMessage(session, message(pongFor(sentId + 1000)));
+
+        assertTrue(handler.isPingOutstanding(), "an unrelated pong must not count as the reply");
+    }
+
+    @Test
+    void doesNotPingWithoutAnOpenSession() {
+        assertFalse(handler.sendPing());
+        assertFalse(handler.isPingOutstanding());
+    }
+
+    @Test
+    void closingTheSessionIsLoggedAsAWarning() {
+        Logger handlerLogger = (Logger) LoggerFactory.getLogger(HomeAssistantWebSocketHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        handlerLogger.addAppender(appender);
+        try {
+            WebSocketSession session = openSession();
+            handler.afterConnectionEstablished(session);
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+
+            assertTrue(
+                appender.list.stream().anyMatch(
+                    event -> event.getLevel() == Level.WARN
+                        && event.getFormattedMessage().contains("websocket closed")
+                ),
+                "a dropped subscription used to be silent; it has to announce itself now"
+            );
+        } finally {
+            handlerLogger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void closingClearsTheSessionAndAnyOutstandingPing() throws Exception {
+        WebSocketSession session = openSession();
+        handler.afterConnectionEstablished(session);
+        handler.sendPing();
+
+        handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+
+        assertFalse(handler.isConnected());
+        assertFalse(handler.isPingOutstanding());
+    }
+
+    private WebSocketSession openSession() {
+        WebSocketSession session = mock(WebSocketSession.class);
+        when(session.isOpen()).thenReturn(true);
+        when(session.getId()).thenReturn("session-1");
+        return session;
+    }
+
+    private String pongFor(int id) {
+        return "{\"id\": " + id + ", \"type\": \"pong\"}";
+    }
+
+    /** Reads the id the handler actually used, rather than assuming the counter's value. */
+    private int pingIdSentOn(WebSocketSession session) throws Exception {
+        ArgumentCaptor<TextMessage> sent = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session).sendMessage(sent.capture());
+        return pingIdOf(sent.getValue());
+    }
+
+    private int pingIdOf(TextMessage sent) {
+        Matcher matcher = Pattern.compile("\"id\":(\\d+)").matcher(sent.getPayload());
+        assertTrue(matcher.find(), "no id in ping payload: " + sent.getPayload());
+        return Integer.parseInt(matcher.group(1));
     }
 
     private Object solePublish() {
